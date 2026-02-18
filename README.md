@@ -30,12 +30,26 @@ This repository implements the SKIDS Parent Firebase consumer platform aligned t
 ## Quick Start
 1. Install Node.js LTS (20+ recommended)
 2. Install Firebase CLI: `npm i -g firebase-tools`
-3. Configure Firebase project aliases in `.firebaserc`
+3. Configure Firebase aliases:
+   - Copy `.env.example` to `.env`
+   - Set `FIREBASE_DEV_PROJECT` and `FIREBASE_PROD_PROJECT`
+   - Run `npm run firebase:configure`
 4. Install dependencies:
    - `cd functions && npm install`
    - `cd web && npm install`
 5. Run local web app: `cd web && npm run dev`
 6. Run Firebase emulators: `firebase emulators:start`
+
+## Deploy Commands
+- Configure aliases:
+  - `npm run firebase:configure`
+- First dev deploy:
+  - `npm run deploy:dev`
+- Production deploy:
+  - `npm run deploy:prod`
+
+Detailed runbook:
+- `/Users/spr/spids/docs/firebase-dev-deploy.md`
 
 ## Verification
 - Functions lint/build:

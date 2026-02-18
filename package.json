@@ -1,0 +1,9 @@
+{
+  "name": "spids",
+  "private": true,
+  "scripts": {
+    "firebase:configure": "bash scripts/configure_firebase_aliases.sh",
+    "deploy:dev": "bash scripts/deploy_dev.sh",
+    "deploy:prod": "bash scripts/deploy_prod.sh"
+  }
+}
