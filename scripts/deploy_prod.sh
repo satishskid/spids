@@ -10,17 +10,15 @@ fi
 
 : "${FIREBASE_PROD_PROJECT:?Set FIREBASE_PROD_PROJECT in .env or environment}"
 
-cd "$ROOT_DIR/functions"
-npm install
-npm run build
-npm test
-
 cd "$ROOT_DIR/web"
 npm install
 npm run build
 
+cd "$ROOT_DIR/worker"
+npm install
+
 cd "$ROOT_DIR"
 
-firebase deploy --project "$FIREBASE_PROD_PROJECT" --config firebase.json --only firestore:rules,firestore:indexes,storage
-firebase deploy --project "$FIREBASE_PROD_PROJECT" --config firebase.json --only functions
+firebase deploy --project "$FIREBASE_PROD_PROJECT" --config firebase.json --only firestore:rules,firestore:indexes
 firebase deploy --project "$FIREBASE_PROD_PROJECT" --config firebase.json --only hosting
+npx wrangler deploy --cwd worker

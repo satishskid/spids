@@ -4,6 +4,9 @@
   "scripts": {
     "firebase:configure": "bash scripts/configure_firebase_aliases.sh",
     "deploy:dev": "bash scripts/deploy_dev.sh",
-    "deploy:prod": "bash scripts/deploy_prod.sh"
+    "deploy:prod": "bash scripts/deploy_prod.sh",
+    "worker:dev": "cd worker && npx wrangler dev",
+    "worker:deploy": "cd worker && npx wrangler deploy",
+    "worker:whoami": "cd worker && npx wrangler whoami"
   }
 }

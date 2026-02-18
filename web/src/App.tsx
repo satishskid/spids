@@ -1,8 +1,9 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import {
   askQuestion,
   createChildProfile,
   exportParentProfileSnapshot,
+  getCurrentUid,
   getDevelopmentTimeline,
   importScreeningCredential,
   interpretCheckin,
@@ -23,6 +24,20 @@ export function App() {
   const [credentialJson, setCredentialJson] = useState("{}");
   const [output, setOutput] = useState("Ready");
   const [isBusy, setIsBusy] = useState(false);
+  const [uid, setUid] = useState("");
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const currentUid = await getCurrentUid();
+        setUid(currentUid);
+        setChildId((existing) => existing || currentUid);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Authentication failed";
+        setOutput(JSON.stringify({ error: message }, null, 2));
+      }
+    })();
+  }, []);
 
   async function run(task: () => Promise<unknown>) {
     setIsBusy(true);
@@ -94,6 +109,7 @@ export function App() {
       <header className="hero">
         <h1>SKIDS Parent</h1>
         <p>Continuous development intelligence for parents.</p>
+        <p>User: {uid || "auth pending..."}</p>
       </header>
 
       <form className="panel" onSubmit={onCreateProfile}>

@@ -7,7 +7,7 @@ This repository implements the SKIDS Parent Firebase consumer platform aligned t
 ## Current Scope
 - Firebase-first architecture for parent app
 - Firestore data model + hardened security rules
-- Cloud Functions for AI calls and JSON interoperability validation
+- Cloudflare Worker (`pairents`) for AI calls on Spark
 - JSON schema contracts for parent export and clinic import
 - Responsive React web MVP shell for core modules
 
@@ -23,6 +23,7 @@ This repository implements the SKIDS Parent Firebase consumer platform aligned t
 ## Repository Layout
 - `functions/` Cloud Functions (TypeScript)
 - `web/` React web app (Vite + TypeScript)
+- `worker/` Cloudflare Worker (Gemini primary, Groq fallback)
 - `schemas/` canonical JSON contracts for interop
 - `docs/` architecture, data model, onboarding, deployment assets
 - `firestore.rules`, `storage.rules` security policy
@@ -35,14 +36,17 @@ This repository implements the SKIDS Parent Firebase consumer platform aligned t
    - Set `FIREBASE_DEV_PROJECT` and `FIREBASE_PROD_PROJECT`
    - Run `npm run firebase:configure`
 4. Install dependencies:
-   - `cd functions && npm install`
    - `cd web && npm install`
+   - `cd worker && npm install`
 5. Run local web app: `cd web && npm run dev`
 6. Run Firebase emulators: `firebase emulators:start`
+7. In Firebase Console, enable Authentication method `Anonymous` for Spark MVP sign-in.
 
 ## Deploy Commands
 - Configure aliases:
   - `npm run firebase:configure`
+- Check Wrangler auth:
+  - `npm run worker:whoami`
 - First dev deploy:
   - `npm run deploy:dev`
 - Production deploy:
@@ -52,21 +56,20 @@ Detailed runbook:
 - `/Users/spr/spids/docs/firebase-dev-deploy.md`
 
 ## Verification
-- Functions lint/build:
-  - `cd functions && npm run lint && npm run build`
-- Functions tests (unit + Firestore rules):
-  - `cd functions && npm test`
 - Web lint/build:
   - `cd web && npm run lint && npm run build`
+- Worker health check after deploy:
+  - `curl https://pairents.<your-workers-subdomain>.workers.dev/health`
 
 Notes:
 - Firestore rules tests run via `firebase emulators:exec` and require Java.
 - Emulator config is defined in `/Users/spr/spids/firebase.json`.
 
 ## Environment Variables
-Functions require:
-- `AI_PROVIDER_URL`
-- `AI_PROVIDER_KEY`
+Worker requires secrets:
+- `GEMINI_API_KEY`
+- `GROQ_API_KEY`
+- `FIREBASE_WEB_API_KEY`
 
 Web app requires:
 - `VITE_FIREBASE_API_KEY`
@@ -74,9 +77,10 @@ Web app requires:
 - `VITE_FIREBASE_PROJECT_ID`
 - `VITE_FIREBASE_STORAGE_BUCKET`
 - `VITE_FIREBASE_APP_ID`
+- `VITE_WORKER_BASE_URL`
 
 ## Non-Negotiable Safety Rules
 - No diagnosis, medication, lab interpretation, or emergency guidance
 - Every AI response must keep the mandatory 5-part structure
 - Parent owns child data; no cross-user reads/writes
-- No direct AI calls from client; AI requests only via Cloud Functions
+- No direct AI key exposure in client; AI requests only via Worker

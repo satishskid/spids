@@ -1,4 +1,4 @@
-# Firebase Wiring + First Dev Deploy
+# Firebase + Worker Dev Deploy (Spark)
 
 ## 1. Prerequisites
 - Install Firebase CLI (`firebase --version`)
@@ -19,14 +19,19 @@ Run:
 - `bash /Users/spr/spids/scripts/deploy_dev.sh`
 
 This performs:
-1. Build Functions
-2. Build Web
-3. Deploy rules/indexes/storage
-4. Deploy functions
-5. Deploy hosting
+1. Build Web
+2. Deploy Firestore rules/indexes
+3. Deploy Hosting
+4. Deploy Cloudflare Worker (`pairents`)
 
 ## 4. Manual Equivalent Commands
 From `/Users/spr/spids`:
-- `firebase deploy --project "$FIREBASE_DEV_PROJECT" --config firebase.json --only firestore:rules,firestore:indexes,storage`
-- `firebase deploy --project "$FIREBASE_DEV_PROJECT" --config firebase.json --only functions`
+- `firebase deploy --project "$FIREBASE_DEV_PROJECT" --config firebase.json --only firestore:rules,firestore:indexes`
 - `firebase deploy --project "$FIREBASE_DEV_PROJECT" --config firebase.json --only hosting`
+- `npx wrangler deploy --cwd worker`
+
+## 5. Required Worker Secrets
+Set these before production traffic:
+- `npx wrangler secret put GEMINI_API_KEY --cwd worker`
+- `npx wrangler secret put GROQ_API_KEY --cwd worker`
+- `npx wrangler secret put FIREBASE_WEB_API_KEY --cwd worker`

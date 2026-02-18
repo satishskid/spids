@@ -1,0 +1,8 @@
+name = "pairents"
+main = "src/index.ts"
+compatibility_date = "2026-02-18"
+workers_dev = true
+account_id = "9f4998a66a5d7bd7a230d0222544fbe6"
+
+[vars]
+FIREBASE_PROJECT_ID = "healthvoice-8461b"
