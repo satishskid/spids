@@ -1,77 +1,98 @@
-# SKIDS Parent Platform (Firebase Consumer MVP)
+# SKIDS Parent Platform (Firebase + Cloudflare Worker)
 
-This repository implements the SKIDS Parent Firebase consumer platform aligned to:
+This repository contains the SKIDS Parent MVP aligned to:
 - `/Users/spr/Downloads/SKIDS_Parent_Firebase_Master_PRD.md`
 - `/Users/spr/Downloads/SKIDS_Parent_Engineering_Companion.md`
 
-## Current Scope
-- Firebase-first architecture for parent app
-- Firestore data model + hardened security rules
-- Cloudflare Worker (`pairents`) for AI calls on Spark
-- JSON schema contracts for parent export and clinic import
-- Responsive React web MVP shell for core modules
+The product combines:
+- Parent-facing web app (React + Firebase)
+- Safe AI guidance backend (Cloudflare Worker)
+- Firestore-backed parent/child profile and timeline
+- Milestone wall + blog library + chat workflow
 
-## Callable APIs (MVP)
-- `createChildProfile`: creates/updates the single child profile (`childId = auth.uid`)
-- `askQuestion`: returns mandatory 5-part developmental response
-- `interpretCheckin`: interprets daily check-in into 5-part structure
-- `saveHomeScreening`: persists structured home screening result
-- `exportParentProfileSnapshot`: emits clinic importable parent JSON snapshot
-- `importScreeningCredential`: validates + stores clinic screening JSON credential
-- `getDevelopmentTimeline`: returns merged timeline across observations/check-ins/screenings/credentials
+## Current Product State
 
-## Repository Layout
-- `functions/` Cloud Functions (TypeScript)
-- `web/` React web app (Vite + TypeScript)
-- `worker/` Cloudflare Worker (Gemini primary, Groq fallback)
-- `schemas/` canonical JSON contracts for interop
-- `docs/` architecture, data model, onboarding, deployment assets
-- `firestore.rules`, `storage.rules` security policy
+Implemented and deployed foundations include:
+- Firebase Auth + Firestore integration for parent sessions and child profile ownership
+- SKIDS chat experience with two modes:
+  - `Question mode`
+  - `Daily check-in mode`
+- Milestone Growth Wall UI with:
+  - age ruler
+  - thin/minor and thick/major milestone lines
+  - click-to-open milestone detail sheet
+  - one-tap handoff from milestone to chat prompt
+- Blog ingestion/search from SKIDS feed via Worker (`https://skids.clinic/feed`)
+- Support tools collapsed under occasional actions:
+  - Home screening check-in
+  - Export parent summary
+  - Import clinic report
 
-## Quick Start
-1. Install Node.js LTS (20+ recommended)
-2. Install Firebase CLI: `npm i -g firebase-tools`
-3. Configure Firebase aliases:
-   - Copy `.env.example` to `.env`
-   - Set `FIREBASE_DEV_PROJECT` and `FIREBASE_PROD_PROJECT`
-   - Run `npm run firebase:configure`
-4. Install dependencies:
-   - `cd web && npm install`
-   - `cd worker && npm install`
-5. Run local web app: `cd web && npm run dev`
-6. Run Firebase emulators: `firebase emulators:start`
-7. In Firebase Console, enable Authentication method `Anonymous` for Spark MVP sign-in.
+## Clinical Data Positioning
 
-## Deploy Commands
-- Configure aliases:
-  - `npm run firebase:configure`
-- Check Wrangler auth:
-  - `npm run worker:whoami`
-- First dev deploy:
-  - `npm run deploy:dev`
-- Production deploy:
-  - `npm run deploy:prod`
+Milestone rendering now uses a verified age-banded baseline dataset in:
+- `/Users/spr/spids/web/src/data/verifiedMilestones.ts`
 
-Detailed runbook:
-- `/Users/spr/spids/docs/firebase-dev-deploy.md`
+References are tracked in:
+- `/Users/spr/spids/docs/clinical-milestone-sources.md`
 
-## Verification
-- Web lint/build:
-  - `cd web && npm run lint && npm run build`
-- Worker health check after deploy:
-  - `curl https://pairents.<your-workers-subdomain>.workers.dev/health`
+Important clinical note:
+- This app provides educational and screening-support guidance.
+- It is **not** a diagnostic system.
+- Final clinical interpretation remains with pediatric professionals.
 
-Notes:
-- Firestore rules tests run via `firebase emulators:exec` and require Java.
-- Emulator config is defined in `/Users/spr/spids/firebase.json`.
+## Architecture
 
-## Environment Variables
-Worker requires secrets:
-- `GEMINI_API_KEY`
-- `GROQ_API_KEY`
-- `FIREBASE_WEB_API_KEY`
+### Frontend (`web/`)
+- Stack: Vite + React + TypeScript + Firebase Web SDK
+- Main screen sections:
+  - Milestone wall (left pane)
+  - Blog hero + searchable article rail
+  - Chat panel (primary interaction surface)
+  - Occasional support actions
+- Core files:
+  - `/Users/spr/spids/web/src/App.tsx`
+  - `/Users/spr/spids/web/src/styles.css`
+  - `/Users/spr/spids/web/src/api/functions.ts`
+  - `/Users/spr/spids/web/src/data/verifiedMilestones.ts`
 
-Web app requires:
+### Worker (`worker/`)
+- Cloudflare Worker API with free-tier friendly provider routing:
+  - Gemini primary
+  - Groq fallback
+- Also serves normalized SKIDS blog feed/search endpoints
+- Core file:
+  - `/Users/spr/spids/worker/src/index.ts`
+
+### Firebase (`functions/`, rules, indexes)
+- Firestore as system of record for profile/timeline entities
+- Security rules enforce parent ownership boundaries
+- Callable/HTTP support functions for timeline and screening workflows
+
+## Key Functional Flows
+
+1. Parent opens app -> Firebase anonymous auth session
+2. Parent creates/updates child profile (name, age in months, domain focus)
+3. Milestone wall loads age-windowed items
+4. Parent clicks milestone -> detail sheet opens
+5. Parent taps `Ask SKIDS` -> milestone becomes contextual chat prompt
+6. Observations/check-ins/screenings are logged into timeline
+7. Parent can export a share summary or import clinic report when needed
+
+## Repo Layout
+
+- `/Users/spr/spids/web` -> frontend app
+- `/Users/spr/spids/worker` -> Cloudflare Worker backend
+- `/Users/spr/spids/functions` -> Firebase functions + validation + screening logic
+- `/Users/spr/spids/docs` -> deployment and product/clinical documentation
+- `/Users/spr/spids/schemas` -> schema contracts
+- `/Users/spr/spids/firestore.rules` -> Firestore security rules
+- `/Users/spr/spids/firestore.indexes.json` -> Firestore composite indexes
+
+## Environment Configuration
+
+### Web env (`web/.env`)
+Required:
 - `VITE_FIREBASE_API_KEY`
 - `VITE_FIREBASE_AUTH_DOMAIN`
 - `VITE_FIREBASE_PROJECT_ID`
@@ -79,8 +100,85 @@ Web app requires:
 - `VITE_FIREBASE_APP_ID`
 - `VITE_WORKER_BASE_URL`
 
-## Non-Negotiable Safety Rules
-- No diagnosis, medication, lab interpretation, or emergency guidance
-- Every AI response must keep the mandatory 5-part structure
-- Parent owns child data; no cross-user reads/writes
-- No direct AI key exposure in client; AI requests only via Worker
+### Worker secrets (Wrangler)
+Required:
+- `GEMINI_API_KEY`
+- `GROQ_API_KEY`
+- `FIREBASE_WEB_API_KEY`
+
+## Local Development
+
+From `/Users/spr/spids`:
+
+1. Install dependencies
+- `cd web && npm install`
+- `cd ../worker && npm install`
+- `cd ../functions && npm install`
+
+2. Start frontend
+- `cd /Users/spr/spids/web && npm run dev`
+
+3. Optional local Firebase emulators
+- `cd /Users/spr/spids && firebase emulators:start`
+
+4. Worker local dev
+- `cd /Users/spr/spids && npm run worker:dev`
+
+## Validation Commands
+
+- `cd /Users/spr/spids/web && npm run lint`
+- `cd /Users/spr/spids/web && npm run build`
+
+## Deployment
+
+### Firebase Hosting
+- `cd /Users/spr/spids && firebase deploy --project healthvoice-8461b --config firebase.json --only hosting`
+
+### Firestore rules/indexes
+- `cd /Users/spr/spids && firebase deploy --project healthvoice-8461b --config firebase.json --only firestore:rules,firestore:indexes`
+
+### Cloudflare Worker
+- `cd /Users/spr/spids && npm run worker:deploy`
+
+## Live URLs (current)
+
+- Firebase app: [https://healthvoice-8461b.web.app](https://healthvoice-8461b.web.app)
+- Worker: [https://pairents.satish-9f4.workers.dev](https://pairents.satish-9f4.workers.dev)
+- Worker health: [https://pairents.satish-9f4.workers.dev/health](https://pairents.satish-9f4.workers.dev/health)
+
+## API Surface (high-level)
+
+Worker routes:
+- `GET /health`
+- `POST /v1/ask`
+- `POST /v1/checkin`
+- `GET /v1/blogs`
+
+Frontend data actions include:
+- child profile save/load
+- milestone wall fetch
+- timeline fetch
+- save home screening
+- export parent summary
+- import clinic report
+
+## Safety Guardrails
+
+- No diagnosis or treatment prescription
+- Educational guidance with screening escalation language
+- Sensitive keys remain server-side (Worker secrets)
+- Parent data ownership enforced in Firestore security model
+
+## Documentation
+
+- `/Users/spr/spids/docs/firebase-dev-deploy.md`
+- `/Users/spr/spids/docs/cloudflare-worker-setup.md`
+- `/Users/spr/spids/docs/data-model.md`
+- `/Users/spr/spids/docs/clinical-milestone-sources.md`
+
+## Next Iteration Candidates
+
+- Add pediatric reviewer signoff workflow for milestone dataset revisions
+- Add domain/age-specific milestone confidence metadata
+- Add richer milestone moderation pipeline before production clinical rollout
+- Add code splitting/perf optimization for large frontend bundle

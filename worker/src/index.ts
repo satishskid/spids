@@ -13,6 +13,15 @@ interface FivePartResponse {
   whenToSeekClinicalScreening: string;
 }
 
+interface BlogPost {
+  title: string;
+  link: string;
+  publishedAt: string;
+  excerpt: string;
+  imageUrl: string;
+  keywords: string[];
+}
+
 const jsonHeaders = {
   "content-type": "application/json",
   "access-control-allow-origin": "*",
@@ -21,9 +30,359 @@ const jsonHeaders = {
 };
 
 const unsafePhrases = ["diagnosis", "medication", "prescribe", "emergency treatment", "lab result"];
+const stopWords = new Set([
+  "the",
+  "and",
+  "for",
+  "with",
+  "that",
+  "this",
+  "from",
+  "your",
+  "have",
+  "will",
+  "into",
+  "about",
+  "when",
+  "what",
+  "their",
+  "there",
+  "where",
+  "which",
+  "than",
+  "then",
+  "also",
+  "just",
+  "been",
+  "were",
+  "they",
+  "them",
+  "more",
+  "some",
+  "only",
+  "over",
+  "under",
+  "care",
+  "child",
+  "children"
+]);
+const BLOG_FEED_URL = "https://skids.clinic/feed";
+const BLOG_MAX_PAGES = 24;
+const BLOG_CACHE_TTL_MS = 15 * 60 * 1000;
+
+let blogCache: { fetchedAt: number; items: BlogPost[] } | null = null;
 
 function response(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
+}
+
+function stripCdata(value: string): string {
+  return value.replace(/^<!\[CDATA\[/, "").replace(/\]\]>$/, "").trim();
+}
+
+function decodeEntities(value: string): string {
+  return value
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#([0-9]+);/g, (_, num: string) => String.fromCharCode(parseInt(num, 10)))
+    .replace(/&#8217;/g, "'")
+    .replace(/&#8220;/g, '"')
+    .replace(/&#8221;/g, '"')
+    .replace(/&#8230;/g, "...")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function stripHtml(value: string): string {
+  return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function extractTag(item: string, tag: string): string {
+  const pattern = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i");
+  const match = item.match(pattern);
+  if (!match?.[1]) {
+    return "";
+  }
+  return stripCdata(match[1]);
+}
+
+function extractAllTags(item: string, tag: string): string[] {
+  const pattern = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "gi");
+  const matches = item.match(pattern) ?? [];
+  return matches
+    .map((entry) => {
+      const single = entry.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
+      return single?.[1] ? stripCdata(single[1]) : "";
+    })
+    .filter(Boolean);
+}
+
+function extractImage(value: string): string {
+  const imgTag = value.match(/<img[^>]+src="([^"]+)"/i);
+  if (imgTag?.[1]) {
+    return imgTag[1];
+  }
+
+  const mediaTag = value.match(/<media:content[^>]+url="([^"]+)"/i);
+  if (mediaTag?.[1]) {
+    return mediaTag[1];
+  }
+
+  const enclosureTag = value.match(/<enclosure[^>]+url="([^"]+)"/i);
+  if (enclosureTag?.[1]) {
+    return enclosureTag[1];
+  }
+
+  return "";
+}
+
+function normalizeText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function tokenize(value: string): string[] {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return [];
+  }
+
+  return normalized
+    .split(" ")
+    .filter((token) => token.length >= 3 && !stopWords.has(token));
+}
+
+function unique(values: string[]): string[] {
+  return Array.from(new Set(values));
+}
+
+function normalizeCategories(categories: string[]): string[] {
+  return categories.map((value) => normalizeText(value)).filter((value) => value.length >= 3);
+}
+
+function extractAgeSignals(value: string): string[] {
+  const source = normalizeText(value);
+  const stages = ["newborn", "infant", "baby", "toddler", "preschool", "teen", "adolescent"];
+  const stageHits = stages.filter((stage) => source.includes(stage));
+
+  const ageTokens: string[] = [];
+  const numericMatches = source.match(/\b\d{1,2}\s*(month|months|year|years)\b/g) ?? [];
+  for (const item of numericMatches) {
+    ageTokens.push(item.trim());
+  }
+
+  return unique([...stageHits, ...ageTokens]);
+}
+
+function buildKeywords(categories: string[], title: string, excerpt: string, body: string): string[] {
+  const words = unique([
+    ...normalizeCategories(categories),
+    ...categories.flatMap((category) => tokenize(category)),
+    ...tokenize(title),
+    ...tokenize(excerpt),
+    ...tokenize(body.slice(0, 2500)),
+    ...extractAgeSignals(`${title} ${excerpt} ${body}`)
+  ]);
+  return words.slice(0, 36);
+}
+
+function searchScore(post: BlogPost, queryTokens: string[]): number {
+  const title = normalizeText(post.title);
+  const excerpt = normalizeText(post.excerpt);
+  const keywords = normalizeText(post.keywords.join(" "));
+  const link = normalizeText(post.link);
+
+  let score = 0;
+  for (const token of queryTokens) {
+    if (!token) {
+      continue;
+    }
+    if (title.includes(token)) {
+      score += 6;
+    }
+    if (keywords.includes(token)) {
+      score += 5;
+    }
+    if (excerpt.includes(token)) {
+      score += 3;
+    }
+    if (link.includes(token)) {
+      score += 1;
+    }
+  }
+  return score;
+}
+
+function parseItem(item: string): BlogPost {
+  const title = decodeEntities(extractTag(item, "title")) || "SKIDS Article";
+  const link = extractTag(item, "link");
+  const publishedAt = extractTag(item, "pubDate");
+  const description = decodeEntities(extractTag(item, "description"));
+  const content = decodeEntities(extractTag(item, "content:encoded"));
+
+  const excerptSource = content || description;
+  const excerptText = stripHtml(excerptSource).slice(0, 260);
+  const excerpt = excerptText || "Open to read this article from the SKIDS knowledge library.";
+
+  const categories = extractAllTags(item, "category").map((category) =>
+    decodeEntities(stripHtml(category))
+  );
+
+  const imageUrl = extractImage(item + content + description);
+  const keywords = buildKeywords(categories, title, excerpt, stripHtml(content || description));
+
+  return {
+    title,
+    link,
+    publishedAt,
+    excerpt,
+    imageUrl,
+    keywords
+  };
+}
+
+function parseHtmlFeed(document: string): BlogPost[] {
+  const cards = document.match(/<article class="bg-white[\s\S]*?<\/article>/gi) ?? [];
+  return cards
+    .map((card) => {
+      const linkMatch = card.match(/href="(\/blog\/[^"]+)"/i);
+      const titleMatch = card.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
+      const imageMatch = card.match(/<img[^>]+src="([^"]+)"/i);
+      const dateMatch = card.match(/<div class="flex items-center[\s\S]*?<span>([^<]+)<\/span>/i);
+      const categoryMatch = card.match(/<span class="text-xs[^>]*>([\s\S]*?)<\/span>/i);
+
+      if (!linkMatch?.[1] || !titleMatch?.[1]) {
+        return null;
+      }
+
+      const title = decodeEntities(stripHtml(titleMatch[1]));
+      const category = categoryMatch?.[1] ? decodeEntities(stripHtml(categoryMatch[1])) : "";
+      const dateText = dateMatch?.[1] ? decodeEntities(stripHtml(dateMatch[1])) : "";
+      const excerpt = category
+        ? `${category} article from the SKIDS knowledge library.`
+        : "Article from the SKIDS knowledge library.";
+      const content = `${title} ${category} ${dateText}`.trim();
+
+      return {
+        title: title || "SKIDS Article",
+        link: `https://skids.clinic${linkMatch[1]}`,
+        publishedAt: dateText,
+        excerpt,
+        imageUrl: imageMatch?.[1] ? decodeEntities(imageMatch[1]) : "",
+        keywords: buildKeywords(category ? [category] : [], title, excerpt, content)
+      } as BlogPost;
+    })
+    .filter((item): item is BlogPost => Boolean(item));
+}
+
+function parseFeed(document: string): BlogPost[] {
+  const rssItems = document.match(/<item>[\s\S]*?<\/item>/gi) ?? [];
+  if (rssItems.length > 0) {
+    return rssItems.map((item) => parseItem(item)).filter((item) => item.link);
+  }
+  return parseHtmlFeed(document);
+}
+
+function publishTime(value: string): number {
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+async function fetchFeedPage(page: number): Promise<BlogPost[]> {
+  const feedUrl = page === 1 ? BLOG_FEED_URL : `${BLOG_FEED_URL}?paged=${page}`;
+  const feed = await fetch(feedUrl, {
+    cf: { cacheEverything: true, cacheTtl: 900 }
+  });
+
+  if (!feed.ok) {
+    throw new Error(`Feed page ${page} request failed with ${feed.status}`);
+  }
+
+  const body = await feed.text();
+  return parseFeed(body);
+}
+
+async function getBlogLibrary(): Promise<BlogPost[]> {
+  const now = Date.now();
+  if (blogCache && now - blogCache.fetchedAt < BLOG_CACHE_TTL_MS) {
+    return blogCache.items;
+  }
+
+  const byLink = new Map<string, BlogPost>();
+  let duplicatePages = 0;
+
+  for (let page = 1; page <= BLOG_MAX_PAGES; page += 1) {
+    let pageItems: BlogPost[] = [];
+    try {
+      pageItems = await fetchFeedPage(page);
+    } catch (error) {
+      if (page === 1) {
+        throw error;
+      }
+      break;
+    }
+
+    if (pageItems.length === 0) {
+      break;
+    }
+
+    let pageAdds = 0;
+    for (const entry of pageItems) {
+      if (entry.link && !byLink.has(entry.link)) {
+        byLink.set(entry.link, entry);
+        pageAdds += 1;
+      }
+    }
+
+    if (pageAdds === 0) {
+      duplicatePages += 1;
+      if (duplicatePages >= 2) {
+        break;
+      }
+    } else {
+      duplicatePages = 0;
+    }
+  }
+
+  const items = Array.from(byLink.values()).sort(
+    (a, b) => publishTime(b.publishedAt) - publishTime(a.publishedAt)
+  );
+  blogCache = { fetchedAt: now, items };
+  return items;
+}
+
+function searchBlogs(items: BlogPost[], query: string): BlogPost[] {
+  const normalizedQuery = normalizeText(query);
+  if (!normalizedQuery) {
+    return items;
+  }
+
+  const tokens = normalizedQuery.split(" ").filter(Boolean);
+  const ranked = items
+    .map((post) => ({
+      post,
+      score: searchScore(post, tokens)
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => {
+      if (a.score !== b.score) {
+        return b.score - a.score;
+      }
+      return publishTime(b.post.publishedAt) - publishTime(a.post.publishedAt);
+    });
+
+  return ranked.map((entry) => entry.post);
+}
+
+async function fetchClinicBlogs(search = "", limit = 120): Promise<{ items: BlogPost[]; total: number }> {
+  const library = await getBlogLibrary();
+  const filtered = searchBlogs(library, search);
+  const boundedLimit = Math.max(1, Math.min(300, Number.isFinite(limit) ? limit : 120));
+  return {
+    items: filtered.slice(0, boundedLimit),
+    total: library.length
+  };
 }
 
 function enforceSafety(input: string): void {
@@ -217,8 +576,20 @@ export default {
       return new Response(null, { status: 204, headers: jsonHeaders });
     }
 
-    if (request.method === "GET" && url.pathname === "/health") {
+    if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/health") {
       return response({ ok: true, service: "pairents" });
+    }
+
+    if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/") {
+      return response({
+        service: "pairents",
+        status: "ok",
+        endpoints: ["/health", "/v1/ask", "/v1/checkin", "/v1/blogs"]
+      });
+    }
+
+    if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/favicon.ico") {
+      return new Response(null, { status: 204, headers: jsonHeaders });
     }
 
     if (request.method === "POST" && url.pathname === "/v1/ask") {
@@ -227,6 +598,29 @@ export default {
 
     if (request.method === "POST" && url.pathname === "/v1/checkin") {
       return handleAiRequest(request, env, "checkin");
+    }
+
+    if (request.method === "GET" && url.pathname === "/v1/blogs") {
+      try {
+        const query = url.searchParams.get("q") ?? "";
+        const limit = Number(url.searchParams.get("limit") ?? "120");
+        const blogs = await fetchClinicBlogs(query, limit);
+        return response({
+          items: blogs.items,
+          total: blogs.total,
+          matched: blogs.items.length
+        });
+      } catch (error) {
+        return response(
+          {
+            items: [],
+            total: 0,
+            matched: 0,
+            error: error instanceof Error ? error.message : "Blog fetch failed"
+          },
+          200
+        );
+      }
     }
 
     return response({ error: "Not found" }, 404);

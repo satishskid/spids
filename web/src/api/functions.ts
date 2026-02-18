@@ -12,8 +12,9 @@ import {
   where
 } from "firebase/firestore";
 import { auth, db } from "../firebase";
+import { VERIFIED_MILESTONES } from "../data/verifiedMilestones";
 
-interface FivePartResponse {
+export interface FivePartResponse {
   whatIsHappeningDevelopmentally: string;
   whatParentsMayNotice: string;
   whatIsNormalVariation: string;
@@ -21,10 +22,43 @@ interface FivePartResponse {
   whenToSeekClinicalScreening: string;
 }
 
-interface TimelineEvent {
+export interface TimelineEvent {
   type: "observation" | "dailyCheckin" | "homeScreening" | "credential";
   createdAt: string;
   payload: Record<string, unknown>;
+}
+
+export interface BlogPost {
+  title: string;
+  link: string;
+  publishedAt: string;
+  excerpt: string;
+  imageUrl: string;
+  keywords: string[];
+}
+
+export interface ChildProfileSummary {
+  childId: string;
+  name: string;
+  ageMonths: number;
+  parentId: string;
+}
+
+export interface MilestoneWallItem {
+  id: string;
+  domain: string;
+  ageMinMonths: number;
+  ageMaxMonths: number;
+  priority?: "major" | "minor";
+  milestoneTitle: string;
+  developmentProcess: string;
+  biologyExplanation: string;
+  observableSigns: string;
+  normalVariation: string;
+  homeActions: string;
+  clinicTrigger: string;
+  sourceAuthority?: string;
+  sourceUrl?: string;
 }
 
 function nowIso(): string {
@@ -44,8 +78,18 @@ export async function ensureAuthenticated(): Promise<User> {
     return auth.currentUser;
   }
 
-  const credential = await signInAnonymously(auth);
-  return credential.user;
+  try {
+    const credential = await signInAnonymously(auth);
+    return credential.user;
+  } catch (error) {
+    const authError = error as { code?: string; message?: string };
+    if (authError.code === "auth/configuration-not-found") {
+      throw new Error(
+        "Authentication not configured. Enable Anonymous sign-in in Firebase Console -> Authentication -> Sign-in method."
+      );
+    }
+    throw new Error(authError.message ?? "Authentication failed");
+  }
 }
 
 export async function getCurrentUid(): Promise<string> {
@@ -74,6 +118,27 @@ async function callWorker(path: string, payload: Record<string, unknown>) {
   return data;
 }
 
+export async function fetchDailyBlogs(search = ""): Promise<BlogPost[]> {
+  const base = `${workerBaseUrl()}/v1/blogs`;
+  const url =
+    search.trim().length > 0
+      ? `${base}?q=${encodeURIComponent(search.trim())}&limit=200`
+      : `${base}?limit=200`;
+  const res = await fetch(url);
+  const data = (await res.json()) as {
+    items?: BlogPost[];
+    total?: number;
+    matched?: number;
+    error?: string;
+  };
+
+  if (!res.ok) {
+    throw new Error(data.error ?? "Blog fetch failed");
+  }
+
+  return data.items ?? [];
+}
+
 async function getChildProfile(childId: string, uid: string): Promise<Record<string, unknown>> {
   const childDoc = await getDoc(doc(db, "children", childId));
   if (!childDoc.exists()) {
@@ -89,24 +154,36 @@ async function getChildProfile(childId: string, uid: string): Promise<Record<str
 }
 
 async function buildMilestoneContext(ageMonths: number, domain?: string): Promise<string> {
-  const milestoneQuery =
-    domain && domain.trim().length > 0
-      ? query(collection(db, "milestones"), where("domain", "==", domain), limit(30))
+  const normalizedDomain = normalizeDomain(domain ?? "");
+  const authoritative = toVerifiedMilestoneRows()
+    .filter((row) => {
+      const domainMatches = normalizedDomain.length === 0 || normalizeDomain(row.domain) === normalizedDomain;
+      return domainMatches && ageMonths >= row.ageMinMonths && ageMonths <= row.ageMaxMonths;
+    })
+    .map((row) => row.milestoneTitle);
+
+  const firestoreQuery =
+    normalizedDomain.length > 0
+      ? query(collection(db, "milestones"), where("domain", "==", normalizedDomain), limit(30))
       : query(collection(db, "milestones"), limit(30));
 
-  const snap = await getDocs(milestoneQuery);
-  const titles = snap.docs
-    .map((d) => d.data() as Record<string, unknown>)
-    .filter((row) => {
-      const min = Number(row.age_min_months ?? 0);
-      const max = Number(row.age_max_months ?? 999);
-      return ageMonths >= min && ageMonths <= max;
-    })
-    .map((row) => String(row.milestone_title ?? ""))
-    .filter(Boolean)
-    .slice(0, 6);
+  let customTitles: string[] = [];
+  try {
+    const snap = await getDocs(firestoreQuery);
+    customTitles = snap.docs
+      .map((d) => d.data() as Record<string, unknown>)
+      .filter((row) => {
+        const min = Number(row.age_min_months ?? row.ageMinMonths ?? 0);
+        const max = Number(row.age_max_months ?? row.ageMaxMonths ?? 999);
+        return ageMonths >= min && ageMonths <= max;
+      })
+      .map((row) => String(row.milestone_title ?? row.title ?? ""))
+      .filter((title) => title.trim().length > 0);
+  } catch {
+    customTitles = [];
+  }
 
-  return titles.join(", ");
+  return Array.from(new Set([...authoritative, ...customTitles])).slice(0, 8).join(", ");
 }
 
 export async function createChildProfile(payload: {
@@ -139,6 +216,225 @@ export async function createChildProfile(payload: {
   );
 
   return { success: true, childId };
+}
+
+function asNumber(value: unknown, fallback = 0): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function asText(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function normalizeDomain(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function midpointMonths(item: MilestoneWallItem): number {
+  return (item.ageMinMonths + item.ageMaxMonths) / 2;
+}
+
+function toVerifiedMilestoneRows(): MilestoneWallItem[] {
+  return VERIFIED_MILESTONES.map((row, index) => ({
+    id: `verified-${index}`,
+    domain: row.domain,
+    ageMinMonths: row.ageMinMonths,
+    ageMaxMonths: row.ageMaxMonths,
+    priority: row.priority,
+    milestoneTitle: row.milestoneTitle,
+    developmentProcess: row.developmentProcess,
+    biologyExplanation: "",
+    observableSigns: row.observableSigns,
+    normalVariation: "",
+    homeActions: row.homeActions,
+    clinicTrigger: row.clinicTrigger,
+    sourceAuthority: row.sourceAuthority,
+    sourceUrl: row.sourceUrl
+  }));
+}
+
+export async function getChildProfileSummary(childId: string): Promise<ChildProfileSummary | null> {
+  const user = await ensureAuthenticated();
+  const child = await getDoc(doc(db, "children", childId));
+  if (!child.exists()) {
+    return null;
+  }
+
+  const data = child.data() as Record<string, unknown>;
+  if (String(data.parentId ?? "") !== user.uid) {
+    throw new Error("Child access denied");
+  }
+
+  return {
+    childId,
+    name: asText(data.name, ""),
+    ageMonths: asNumber(data.ageMonths, 0),
+    parentId: asText(data.parentId, "")
+  };
+}
+
+export async function fetchMilestoneWall(payload: {
+  ageMonths: number;
+  domain?: string;
+  limit?: number;
+  spanMonths?: number;
+}): Promise<MilestoneWallItem[]> {
+  const targetAge = asNumber(payload.ageMonths, 0);
+  const span = Math.max(3, Math.min(18, asNumber(payload.spanMonths, 9)));
+  const maxRows = Math.max(20, Math.min(260, asNumber(payload.limit, 200)));
+  const normalizedDomain = normalizeDomain(payload.domain ?? "");
+
+  function readNumber(data: Record<string, unknown>, keys: string[], fallback = 0): number {
+    for (const key of keys) {
+      const value = asNumber(data[key], Number.NaN);
+      if (Number.isFinite(value)) {
+        return value;
+      }
+    }
+    return fallback;
+  }
+
+  function readText(data: Record<string, unknown>, keys: string[], fallback = ""): string {
+    for (const key of keys) {
+      const value = asText(data[key], "");
+      if (value.trim().length > 0) {
+        return value.trim();
+      }
+    }
+    return fallback;
+  }
+
+  const authoritativeRows = toVerifiedMilestoneRows();
+  let firestoreRows: MilestoneWallItem[] = [];
+
+  try {
+    const snap = await getDocs(query(collection(db, "milestones"), limit(maxRows)));
+    firestoreRows = snap.docs
+      .map((row) => {
+        const data = row.data() as Record<string, unknown>;
+        const ageMin = readNumber(
+          data,
+          ["age_min_months", "ageMinMonths", "age_min", "min_age_months", "from_month", "start_month"],
+          0
+        );
+        const rawAgeMax = readNumber(
+          data,
+          ["age_max_months", "ageMaxMonths", "age_max", "max_age_months", "to_month", "end_month"],
+          ageMin + 1
+        );
+        const ageMax = rawAgeMax >= ageMin ? rawAgeMax : ageMin + 1;
+        const title = readText(data, ["milestone_title", "title", "name", "milestone"], "");
+        const domain = readText(data, ["domain", "domain_name", "category", "track", "stream"], "general");
+
+        const priorityRaw = readText(
+          data,
+          ["priority", "importance", "level", "milestone_level", "marker_type"],
+          ""
+        ).toLowerCase();
+        const explicitMajor =
+          priorityRaw.includes("major") ||
+          priorityRaw.includes("core") ||
+          priorityRaw.includes("key") ||
+          priorityRaw.includes("primary") ||
+          data.isMajor === true ||
+          asNumber(data.is_major, 0) === 1;
+        const midpoint = (ageMin + ageMax) / 2;
+        const inferredMajor = ageMax - ageMin >= 3 || Math.round(midpoint) % 3 === 0;
+        const priority: "major" | "minor" = explicitMajor || inferredMajor ? "major" : "minor";
+
+        return {
+          id: row.id,
+          domain,
+          ageMinMonths: ageMin,
+          ageMaxMonths: ageMax,
+          priority,
+          milestoneTitle: title,
+          developmentProcess: readText(data, ["development_process", "developmentProcess", "process"], ""),
+          biologyExplanation: readText(data, ["biology_explanation", "biologyExplanation"], ""),
+          observableSigns: readText(data, ["observable_signs", "observableSigns", "signs"], ""),
+          normalVariation: readText(data, ["normal_variation", "normalVariation"], ""),
+          homeActions: readText(data, ["home_actions", "homeActions", "actions"], ""),
+          clinicTrigger: readText(data, ["clinic_trigger", "clinicTrigger"], ""),
+          sourceAuthority: readText(data, ["source_authority", "sourceAuthority"], ""),
+          sourceUrl: readText(data, ["source_url", "sourceUrl"], "")
+        } satisfies MilestoneWallItem;
+      })
+      .filter((row) => row.milestoneTitle.trim().length > 0);
+  } catch {
+    firestoreRows = [];
+  }
+
+  const scopedAuthoritative =
+    normalizedDomain.length > 0
+      ? authoritativeRows.filter((row) => normalizeDomain(row.domain) === normalizedDomain)
+      : authoritativeRows;
+  const scopedFirestore =
+    normalizedDomain.length > 0
+      ? firestoreRows.filter((row) => normalizeDomain(row.domain) === normalizedDomain)
+      : firestoreRows;
+
+  const byKey = new Map<string, MilestoneWallItem>();
+  const addUnique = (rows: MilestoneWallItem[]) => {
+    for (const row of rows) {
+      const key = [
+        normalizeDomain(row.domain),
+        row.ageMinMonths,
+        row.ageMaxMonths,
+        row.milestoneTitle.toLowerCase().trim()
+      ].join("|");
+      if (!byKey.has(key)) {
+        byKey.set(key, row);
+      }
+    }
+  };
+
+  // Authoritative baseline first, then any custom clinic-authored rows.
+  addUnique(scopedAuthoritative);
+  addUnique(
+    scopedFirestore.filter(
+      (row) =>
+        row.sourceAuthority?.trim().length ||
+        row.sourceUrl?.trim().length ||
+        normalizeDomain(row.domain) === "clinic"
+      )
+  );
+
+  if (byKey.size === 0) {
+    addUnique(authoritativeRows);
+  }
+
+  const pool = Array.from(byKey.values());
+
+  const withinAge = pool
+    .filter((row) => row.ageMaxMonths >= targetAge - span && row.ageMinMonths <= targetAge + span)
+    .sort((a, b) => {
+      const aMid = midpointMonths(a);
+      const bMid = midpointMonths(b);
+      const aDistance = Math.abs(aMid - targetAge);
+      const bDistance = Math.abs(bMid - targetAge);
+      if (aDistance !== bDistance) {
+        return aDistance - bDistance;
+      }
+      return a.ageMinMonths - b.ageMinMonths;
+    });
+
+  if (withinAge.length > 0) {
+    return withinAge.slice(0, Math.min(maxRows, 120));
+  }
+
+  return pool
+    .sort((a, b) => {
+      const aMid = midpointMonths(a);
+      const bMid = midpointMonths(b);
+      const aDistance = Math.abs(aMid - targetAge);
+      const bDistance = Math.abs(bMid - targetAge);
+      if (aDistance !== bDistance) {
+        return aDistance - bDistance;
+      }
+      return a.ageMinMonths - b.ageMinMonths;
+    })
+    .slice(0, Math.min(maxRows, 120));
 }
 
 export async function askQuestion(payload: {
