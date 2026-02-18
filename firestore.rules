@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function ownsResource() {
+      return isAuthenticated() && resource.data.parentId == request.auth.uid;
+    }
+
+    function ownsIncomingResource() {
+      return isAuthenticated() && request.resource.data.parentId == request.auth.uid;
+    }
+
+    function isPrimaryChildId(childId) {
+      return isAuthenticated() && childId == request.auth.uid;
+    }
+
+    function validIncomingChildRef() {
+      return isAuthenticated() && request.resource.data.childId == request.auth.uid;
+    }
+
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    match /children/{childId} {
+      allow create: if ownsIncomingResource() && isPrimaryChildId(childId);
+      allow read, delete: if ownsResource() && isPrimaryChildId(childId);
+      allow update: if ownsResource() && isPrimaryChildId(childId) && request.resource.data.parentId == resource.data.parentId;
+    }
+
+    match /observations/{docId} {
+      allow create: if ownsIncomingResource() && validIncomingChildRef();
+      allow read, delete: if ownsResource();
+      allow update: if ownsResource()
+        && request.resource.data.parentId == resource.data.parentId
+        && request.resource.data.childId == resource.data.childId;
+    }
+
+    match /homeScreenings/{docId} {
+      allow create: if ownsIncomingResource() && validIncomingChildRef();
+      allow read, delete: if ownsResource();
+      allow update: if ownsResource()
+        && request.resource.data.parentId == resource.data.parentId
+        && request.resource.data.childId == resource.data.childId;
+    }
+
+    match /dailyCheckins/{docId} {
+      allow create: if ownsIncomingResource() && validIncomingChildRef();
+      allow read, delete: if ownsResource();
+      allow update: if ownsResource()
+        && request.resource.data.parentId == resource.data.parentId
+        && request.resource.data.childId == resource.data.childId;
+    }
+
+    match /screeningCredentials/{docId} {
+      allow create: if ownsIncomingResource() && validIncomingChildRef();
+      allow read, delete: if ownsResource();
+      allow update: if false;
+    }
+
+    match /milestones/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /developmentDomains/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /blogContent/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}

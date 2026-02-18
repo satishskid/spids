@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "skids.screeningResultImport.v1",
+  "type": "object",
+  "required": ["credentialType", "assessmentDate", "clinicId", "version"],
+  "properties": {
+    "credentialType": { "type": "string", "minLength": 1 },
+    "assessmentDate": { "type": "string", "minLength": 1 },
+    "clinicId": { "type": "string", "minLength": 1 },
+    "physicalFindings": { "type": "object" },
+    "behavioralAssessment": { "type": "object" },
+    "learningIndicators": { "type": "object" },
+    "riskFlags": { "type": "array", "items": { "type": "string" } },
+    "clinicianSignature": { "type": "string" },
+    "version": { "type": "string", "minLength": 1 },
+    "schemaHash": { "type": "string" },
+    "issuerId": { "type": "string" },
+    "timestamp": { "type": "string" }
+  },
+  "additionalProperties": true
+}
