@@ -1315,22 +1315,22 @@ export function App() {
                   <div className="assistant-structured">
                     <p className="assistant-summary">{message.fivePart.whatIsHappeningDevelopmentally}</p>
                     <div className="five-part-grid">
-                      <section className="five-part-card">
-                        <h4>What parents may notice</h4>
+                      <details className="five-part-card" open>
+                        <summary>What parents may notice</summary>
                         <p>{message.fivePart.whatParentsMayNotice}</p>
-                      </section>
-                      <section className="five-part-card">
-                        <h4>What is normal variation</h4>
+                      </details>
+                      <details className="five-part-card">
+                        <summary>What is normal variation</summary>
                         <p>{message.fivePart.whatIsNormalVariation}</p>
-                      </section>
-                      <section className="five-part-card">
-                        <h4>What to do at home</h4>
+                      </details>
+                      <details className="five-part-card">
+                        <summary>What to do at home</summary>
                         <p>{message.fivePart.whatToDoAtHome}</p>
-                      </section>
-                      <section className="five-part-card">
-                        <h4>When to seek clinical screening</h4>
+                      </details>
+                      <details className="five-part-card seek-care" open>
+                        <summary>When to seek clinical screening</summary>
                         <p>{message.fivePart.whenToSeekClinicalScreening}</p>
-                      </section>
+                      </details>
                     </div>
                     <p className="assistant-meta">
                       <span>{message.contextLabel ?? supportContextLabel(ageMonths, domain, chatContext)}</span>

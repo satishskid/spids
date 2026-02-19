@@ -1706,11 +1706,13 @@ button {
   justify-self: end;
   background: #fff1e3;
   border-color: #f0d8bf;
+  max-width: min(680px, 82%);
 }
 
 .message.assistant {
   justify-self: start;
   background: #fff;
+  max-width: min(690px, 84%);
 }
 
 .message-role {
@@ -1753,8 +1755,10 @@ button {
   padding: 8px 9px;
 }
 
-.five-part-card h4 {
-  margin: 0 0 3px;
+.five-part-card summary {
+  list-style: none;
+  cursor: pointer;
+  margin: 0;
   font-family: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
   font-size: 0.74rem;
   font-weight: 800;
@@ -1763,11 +1767,36 @@ button {
   text-transform: uppercase;
 }
 
+.five-part-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.five-part-card summary::after {
+  content: "+";
+  float: right;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #6784a6;
+}
+
+.five-part-card[open] summary::after {
+  content: "-";
+}
+
 .five-part-card p {
-  margin: 0;
+  margin: 6px 0 0;
   color: #39506b;
   font-size: 0.86rem;
   line-height: 1.42;
+}
+
+.five-part-card.seek-care {
+  border-color: #e8d8cc;
+  background: #fff8f2;
+}
+
+.five-part-card.seek-care summary {
+  color: #7f4d33;
 }
 
 .assistant-meta {
