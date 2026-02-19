@@ -1249,10 +1249,71 @@ button {
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
+.main > .today-compass {
+  order: 0;
+}
+
+.main > .body-wonder-atlas.primary-surface {
+  order: 1;
+}
+
+.main > .chat.primary-chat-surface {
+  order: 2;
+}
+
+.main > .hero-blog.library-surface {
+  order: 3;
+}
+
+.main > .occasional-actions {
+  order: 4;
+}
+
+.today-compass {
+  background: linear-gradient(165deg, #ffffff 0%, #f3f9fb 100%);
+  border-color: #d6e5ec;
+}
+
+.today-compass h2 {
+  font-size: 1.16rem;
+}
+
+.today-compass-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.today-compass-grid article {
+  border: 1px solid #d7e5ee;
+  border-radius: 11px;
+  background: #fbfeff;
+  padding: 8px 9px;
+  display: grid;
+  gap: 4px;
+}
+
+.today-compass-grid strong {
+  font-size: 0.82rem;
+  color: #2f536f;
+}
+
+.today-compass-grid p {
+  margin: 0;
+  font-size: 0.79rem;
+  color: #4d647c;
+  line-height: 1.35;
+}
+
 .hero-blog {
   padding: 12px;
   display: grid;
   gap: 10px;
+}
+
+.hero-blog.library-surface {
+  border-color: #dce8ee;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fcff 100%);
 }
 
 .hero-top {
@@ -1454,6 +1515,11 @@ button {
   padding: 12px;
   display: grid;
   gap: 10px;
+}
+
+.body-wonder-atlas.primary-surface {
+  border-color: #cde0ea;
+  box-shadow: 0 18px 36px -30px rgba(39, 80, 104, 0.34);
 }
 
 .focus-top {
@@ -1765,6 +1831,11 @@ button {
   min-height: calc(100vh - 40px);
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+}
+
+.chat.primary-chat-surface {
+  border-color: #cfe1eb;
+  box-shadow: 0 18px 36px -30px rgba(36, 74, 98, 0.3);
 }
 
 .chat-head {
@@ -2368,6 +2439,10 @@ button {
   }
 
   .playbook-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .today-compass-grid {
     grid-template-columns: 1fr;
   }
 

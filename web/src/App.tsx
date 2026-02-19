@@ -1357,13 +1357,37 @@ export function App() {
       </aside>
 
       <section className="main">
-        <section className="hero-blog">
+        <section className="card today-compass">
+          <p className="eyebrow">Today Compass</p>
+          <h2>What matters now</h2>
+          <p className="muted">
+            Keep today simple: focus on one growth signal, ask one question, and save one observation for your next
+            pediatric visit.
+          </p>
+          <div className="today-compass-grid">
+            <article>
+              <strong>1. Body Wonder</strong>
+              <p>See one age-relevant focus and what to watch today.</p>
+            </article>
+            <article>
+              <strong>2. Ask SKIDS</strong>
+              <p>Get calm, medically safe guidance with confidence + sources.</p>
+            </article>
+            <article>
+              <strong>3. Save Record</strong>
+              <p>Every observation becomes part of your child health timeline.</p>
+            </article>
+          </div>
+        </section>
+
+        <section className="hero-blog library-surface">
           <div className="hero-top">
             <button className="ghost side-toggle" type="button" onClick={() => setSidebarOpen((v) => !v)}>
               {sidebarOpen ? "Hide milestone wall" : "Show milestone wall"}
             </button>
-            <p className="muted">Nudging confident parenting through growth science and regular checkups.</p>
+            <p className="muted">Knowledge library for deeper reading when you want it.</p>
           </div>
+          <p className="eyebrow">SKIDS Knowledge Library</p>
 
           {authError ? (
             <div className="auth-alert">
@@ -1452,7 +1476,7 @@ export function App() {
           </div>
         </section>
 
-        <section className="body-wonder-atlas">
+        <section className="body-wonder-atlas primary-surface">
           <div className="focus-top">
             <p className="eyebrow">Body Wonder Atlas</p>
             <div className="focus-top-actions">
@@ -1651,7 +1675,7 @@ export function App() {
           )}
         </section>
 
-        <section className="chat" ref={chatPanelRef}>
+        <section className="chat primary-chat-surface" ref={chatPanelRef}>
           <header className="chat-head">
             <div>
               <h2>SKIDS Chat</h2>
