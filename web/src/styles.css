@@ -1978,6 +1978,60 @@ button {
   padding: 3px 8px;
 }
 
+.assistant-meta .uncertainty-badge {
+  border-color: #ccddeb;
+  background: #eef6fd;
+}
+
+.assistant-meta .uncertainty-badge.low {
+  border-color: #c4e4d7;
+  background: #eefaf5;
+  color: #2f6a52;
+}
+
+.assistant-meta .uncertainty-badge.medium {
+  border-color: #d5e3ef;
+  background: #f2f7fc;
+  color: #3e5f7b;
+}
+
+.assistant-meta .uncertainty-badge.high {
+  border-color: #e8d8cd;
+  background: #fbf4ef;
+  color: #8a5139;
+}
+
+.assistant-uncertainty-note {
+  margin: -2px 0 0;
+  color: #5c7287;
+  font-size: 0.77rem;
+  line-height: 1.35;
+}
+
+.assistant-citations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.assistant-citation {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  border: 1px solid #d5e2ec;
+  border-radius: 999px;
+  background: #f8fbfe;
+  color: #3f5f7c;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 9px;
+}
+
+.assistant-citation:hover {
+  border-color: #bfd3e2;
+  background: #eff7ff;
+}
+
 .composer {
   border-top: 1px solid #deeaef;
   padding: 12px;
@@ -2411,6 +2465,20 @@ button {
   .message pre {
     font-size: 0.92rem;
     line-height: 1.5;
+  }
+
+  .assistant-meta span {
+    font-size: 0.67rem;
+    padding: 3px 7px;
+  }
+
+  .assistant-uncertainty-note {
+    font-size: 0.74rem;
+  }
+
+  .assistant-citation {
+    font-size: 0.69rem;
+    padding: 4px 8px;
   }
 
   .composer {

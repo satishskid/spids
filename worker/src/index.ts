@@ -13,6 +13,23 @@ interface FivePartResponse {
   whenToSeekClinicalScreening: string;
 }
 
+type UncertaintyLevel = "low" | "medium" | "high";
+
+interface AiCitation {
+  title: string;
+  url: string;
+}
+
+interface AiEnvelope {
+  response: FivePartResponse;
+  citations: AiCitation[];
+  uncertainty: {
+    level: UncertaintyLevel;
+    reason: string;
+  };
+  parseMode: "json" | "fallback";
+}
+
 interface BlogPost {
   title: string;
   link: string;
@@ -921,6 +938,40 @@ function applySupportProgramFraming(input: Partial<FivePartResponse>): FivePartR
   };
 }
 
+function normalizeCitation(input: unknown): AiCitation | null {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+  const row = input as Record<string, unknown>;
+  const title = cleanText(String(row.title ?? row.name ?? ""));
+  const urlRaw = cleanText(String(row.url ?? row.link ?? ""));
+  if (!title || !urlRaw) {
+    return null;
+  }
+  try {
+    const parsed = new URL(urlRaw);
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      return null;
+    }
+    return { title, url: parsed.toString() };
+  } catch {
+    return null;
+  }
+}
+
+function fallbackCitations(): AiCitation[] {
+  return [
+    {
+      title: "CDC developmental milestones",
+      url: "https://www.cdc.gov/ncbddd/actearly/milestones/index.html"
+    },
+    {
+      title: "AAP Bright Futures preventive care",
+      url: "https://www.aap.org/en/practice-management/bright-futures/"
+    }
+  ];
+}
+
 function extractJson(text: string): unknown {
   const stripped = text
     .replace(/^```json\s*/i, "")
@@ -939,19 +990,53 @@ function clipText(value: string, size = 1400): string {
   return `${normalized.slice(0, size - 1)}...`;
 }
 
-function parseModelResponse(rawText: string): FivePartResponse {
+function parseModelResponse(rawText: string): AiEnvelope {
   try {
-    return applySupportProgramFraming(extractJson(rawText) as Partial<FivePartResponse>);
+    const parsed = extractJson(rawText) as Record<string, unknown>;
+    const normalized = applySupportProgramFraming(parsed as Partial<FivePartResponse>);
+
+    const citationsRaw = Array.isArray(parsed.citations) ? parsed.citations : [];
+    const citations = citationsRaw
+      .map((row) => normalizeCitation(row))
+      .filter((row): row is AiCitation => Boolean(row))
+      .slice(0, 4);
+
+    const uncertaintyRaw =
+      parsed.uncertainty && typeof parsed.uncertainty === "object"
+        ? (parsed.uncertainty as Record<string, unknown>)
+        : {};
+    const levelRaw = String(uncertaintyRaw.level ?? "").toLowerCase();
+    const level: UncertaintyLevel =
+      levelRaw === "low" || levelRaw === "high" ? (levelRaw as UncertaintyLevel) : "medium";
+    const reason = cleanText(String(uncertaintyRaw.reason ?? ""));
+
+    return {
+      response: normalized,
+      citations: citations.length > 0 ? citations : fallbackCitations(),
+      uncertainty: {
+        level,
+        reason: reason || "Child development varies by age window and daily context; monitor trend over time."
+      },
+      parseMode: "json"
+    };
   } catch {
     const plain = cleanText(rawText);
-    return applySupportProgramFraming({
-      whatIsHappeningDevelopmentally: plain || "Continue observing and tracking changes over time.",
-      whatParentsMayNotice: "Patterns can vary by child and by day. Watch consistency over 1-2 weeks.",
-      whatIsNormalVariation: "Some variation in pace is common, especially during growth transitions.",
-      whatToDoAtHome: "Use short daily routines, log observations, and discuss trends during routine checkups.",
-      whenToSeekClinicalScreening:
-        "Seek pediatric review sooner for regression, loss of skills, persistent asymmetry, or sustained parent concern."
-    });
+    return {
+      response: applySupportProgramFraming({
+        whatIsHappeningDevelopmentally: plain || "Continue observing and tracking changes over time.",
+        whatParentsMayNotice: "Patterns can vary by child and by day. Watch consistency over 1-2 weeks.",
+        whatIsNormalVariation: "Some variation in pace is common, especially during growth transitions.",
+        whatToDoAtHome: "Use short daily routines, log observations, and discuss trends during routine checkups.",
+        whenToSeekClinicalScreening:
+          "Seek pediatric review sooner for regression, loss of skills, persistent asymmetry, or sustained parent concern."
+      }),
+      citations: fallbackCitations(),
+      uncertainty: {
+        level: "medium",
+        reason: "Structured format fallback was used; verify key concerns during pediatric review."
+      },
+      parseMode: "fallback"
+    };
   }
 }
 
@@ -983,7 +1068,9 @@ function buildSystemPrompt(
     "If parent asks about diagnosis or medication, acknowledge concern and redirect to pediatric review safely.",
     "Gently reinforce that parent observations become part of a longitudinal child health record.",
     "Return ONLY JSON with exactly these keys:",
-    "whatIsHappeningDevelopmentally, whatParentsMayNotice, whatIsNormalVariation, whatToDoAtHome, whenToSeekClinicalScreening",
+    "whatIsHappeningDevelopmentally, whatParentsMayNotice, whatIsNormalVariation, whatToDoAtHome, whenToSeekClinicalScreening, citations, uncertainty",
+    "citations: array of 1-3 objects with keys {title, url}. Use guideline-quality sources only.",
+    "uncertainty: object with keys {level, reason}, where level is one of low|medium|high.",
     "In section 5, include clear thresholds for when to involve pediatrician/screening.",
     "Keep each section concise and parent-friendly (2-4 sentences).",
     `Mode: ${mode}`,
@@ -1017,7 +1104,7 @@ async function verifyFirebaseToken(token: string, env: Env): Promise<string | nu
   return data.users?.[0]?.localId ?? null;
 }
 
-async function callGemini(prompt: string, env: Env): Promise<FivePartResponse> {
+async function callGemini(prompt: string, env: Env): Promise<AiEnvelope> {
   if (!env.GEMINI_API_KEY) {
     throw new Error("Missing GEMINI_API_KEY");
   }
@@ -1049,7 +1136,7 @@ async function callGemini(prompt: string, env: Env): Promise<FivePartResponse> {
   return parseModelResponse(text);
 }
 
-async function callGroq(prompt: string, env: Env): Promise<FivePartResponse> {
+async function callGroq(prompt: string, env: Env): Promise<AiEnvelope> {
   if (!env.GROQ_API_KEY) {
     throw new Error("Missing GROQ_API_KEY");
   }
@@ -1125,14 +1212,52 @@ async function handleAiRequest(request: Request, env: Env, mode: "ask" | "checki
     childAgeMonths: Number(payload.childAgeMonths ?? Number.NaN),
     focusDomain: payload.focusDomain ?? "general"
   });
+  const startedAt = Date.now();
+  const hasConversationContext = Boolean(payload.conversationContext?.trim());
+  const hasMilestoneContext = Boolean(payload.milestoneContext?.trim());
+  const hasParentContext = Boolean(payload.parentContext?.trim());
 
   try {
     const gemini = await callGemini(prompt, env);
-    return response({ uid, provider: "gemini", response: gemini });
+    return response({
+      uid,
+      provider: "gemini",
+      response: gemini.response,
+      citations: gemini.citations,
+      uncertainty: gemini.uncertainty,
+      quality: {
+        model: "gemini-2.0-flash",
+        provider: "gemini",
+        fallbackUsed: false,
+        parseMode: gemini.parseMode,
+        promptVersion: "skids-v2",
+        latencyMs: Date.now() - startedAt,
+        hadConversationContext: hasConversationContext,
+        hadMilestoneContext: hasMilestoneContext,
+        hadParentContext: hasParentContext
+      }
+    });
   } catch {
     try {
       const groq = await callGroq(prompt, env);
-      return response({ uid, provider: "groq", response: groq });
+      return response({
+        uid,
+        provider: "groq",
+        response: groq.response,
+        citations: groq.citations,
+        uncertainty: groq.uncertainty,
+        quality: {
+          model: "llama-3.1-8b-instant",
+          provider: "groq",
+          fallbackUsed: true,
+          parseMode: groq.parseMode,
+          promptVersion: "skids-v2",
+          latencyMs: Date.now() - startedAt,
+          hadConversationContext: hasConversationContext,
+          hadMilestoneContext: hasMilestoneContext,
+          hadParentContext: hasParentContext
+        }
+      });
     } catch (error) {
       return response(
         {

@@ -22,6 +22,38 @@ export interface FivePartResponse {
   whenToSeekClinicalScreening: string;
 }
 
+export type UncertaintyLevel = "low" | "medium" | "high";
+
+export interface AiCitation {
+  title: string;
+  url: string;
+}
+
+export interface AiUncertainty {
+  level: UncertaintyLevel;
+  reason: string;
+}
+
+export interface AiQuality {
+  model: string;
+  provider: string;
+  fallbackUsed: boolean;
+  parseMode: "json" | "fallback";
+  promptVersion: string;
+  latencyMs: number;
+  hadConversationContext: boolean;
+  hadMilestoneContext: boolean;
+  hadParentContext: boolean;
+}
+
+export interface AiGuidancePacket {
+  response: FivePartResponse;
+  provider: string;
+  citations: AiCitation[];
+  uncertainty: AiUncertainty;
+  quality: AiQuality;
+}
+
 export interface TimelineEvent {
   type: "observation" | "dailyCheckin" | "homeScreening" | "credential";
   createdAt: string;
@@ -443,7 +475,7 @@ export async function askQuestion(payload: {
   domain?: string;
   conversationContext?: string;
   parentContext?: string;
-}) {
+}): Promise<AiGuidancePacket> {
   const user = await ensureAuthenticated();
   const child = await getChildProfile(payload.childId, user.uid);
   const milestoneContext = await buildMilestoneContext(Number(child.ageMonths ?? 0), payload.domain);
@@ -458,19 +490,67 @@ export async function askQuestion(payload: {
   })) as {
     response: FivePartResponse;
     provider: string;
+    citations?: AiCitation[];
+    uncertainty?: AiUncertainty;
+    quality?: AiQuality;
+  };
+
+  const guidance: AiGuidancePacket = {
+    response: ai.response,
+    provider: ai.provider,
+    citations: Array.isArray(ai.citations) ? ai.citations : [],
+    uncertainty: ai.uncertainty ?? {
+      level: "medium",
+      reason: "Guidance confidence varies by input detail and developmental context."
+    },
+    quality: ai.quality ?? {
+      model: ai.provider,
+      provider: ai.provider,
+      fallbackUsed: false,
+      parseMode: "json",
+      promptVersion: "unknown",
+      latencyMs: 0,
+      hadConversationContext: Boolean(payload.conversationContext?.trim()),
+      hadMilestoneContext: Boolean(milestoneContext.trim()),
+      hadParentContext: Boolean(payload.parentContext?.trim())
+    }
   };
 
   await addDoc(collection(db, "observations"), {
     parentId: user.uid,
     childId: payload.childId,
     question: payload.question,
-    aiResponse: ai.response,
-    provider: ai.provider,
+    aiResponse: guidance.response,
+    provider: guidance.provider,
+    uncertainty: guidance.uncertainty,
+    citations: guidance.citations,
+    aiQuality: guidance.quality,
     createdAt: nowIso(),
     source: "worker.ask"
   });
 
-  return ai.response;
+  await addDoc(collection(db, "aiQualityLogs"), {
+    parentId: user.uid,
+    childId: payload.childId,
+    mode: "ask",
+    provider: guidance.provider,
+    model: guidance.quality.model,
+    fallbackUsed: guidance.quality.fallbackUsed,
+    parseMode: guidance.quality.parseMode,
+    promptVersion: guidance.quality.promptVersion,
+    latencyMs: guidance.quality.latencyMs,
+    uncertaintyLevel: guidance.uncertainty.level,
+    uncertaintyReason: guidance.uncertainty.reason,
+    citationCount: guidance.citations.length,
+    citations: guidance.citations,
+    hadConversationContext: guidance.quality.hadConversationContext,
+    hadMilestoneContext: guidance.quality.hadMilestoneContext,
+    hadParentContext: guidance.quality.hadParentContext,
+    createdAt: nowIso(),
+    source: "worker.ask"
+  });
+
+  return guidance;
 }
 
 export async function interpretCheckin(payload: {
@@ -479,7 +559,7 @@ export async function interpretCheckin(payload: {
   domain?: string;
   conversationContext?: string;
   parentContext?: string;
-}) {
+}): Promise<AiGuidancePacket> {
   const user = await ensureAuthenticated();
   const child = await getChildProfile(payload.childId, user.uid);
   const milestoneContext = await buildMilestoneContext(Number(child.ageMonths ?? 0), payload.domain);
@@ -494,18 +574,66 @@ export async function interpretCheckin(payload: {
   })) as {
     response: FivePartResponse;
     provider: string;
+    citations?: AiCitation[];
+    uncertainty?: AiUncertainty;
+    quality?: AiQuality;
+  };
+
+  const guidance: AiGuidancePacket = {
+    response: ai.response,
+    provider: ai.provider,
+    citations: Array.isArray(ai.citations) ? ai.citations : [],
+    uncertainty: ai.uncertainty ?? {
+      level: "medium",
+      reason: "Guidance confidence varies by input detail and developmental context."
+    },
+    quality: ai.quality ?? {
+      model: ai.provider,
+      provider: ai.provider,
+      fallbackUsed: false,
+      parseMode: "json",
+      promptVersion: "unknown",
+      latencyMs: 0,
+      hadConversationContext: Boolean(payload.conversationContext?.trim()),
+      hadMilestoneContext: Boolean(milestoneContext.trim()),
+      hadParentContext: Boolean(payload.parentContext?.trim())
+    }
   };
 
   await addDoc(collection(db, "dailyCheckins"), {
     parentId: user.uid,
     childId: payload.childId,
     summary: payload.summary,
-    interpretation: ai.response,
-    provider: ai.provider,
+    interpretation: guidance.response,
+    provider: guidance.provider,
+    uncertainty: guidance.uncertainty,
+    citations: guidance.citations,
+    aiQuality: guidance.quality,
     createdAt: nowIso()
   });
 
-  return ai.response;
+  await addDoc(collection(db, "aiQualityLogs"), {
+    parentId: user.uid,
+    childId: payload.childId,
+    mode: "checkin",
+    provider: guidance.provider,
+    model: guidance.quality.model,
+    fallbackUsed: guidance.quality.fallbackUsed,
+    parseMode: guidance.quality.parseMode,
+    promptVersion: guidance.quality.promptVersion,
+    latencyMs: guidance.quality.latencyMs,
+    uncertaintyLevel: guidance.uncertainty.level,
+    uncertaintyReason: guidance.uncertainty.reason,
+    citationCount: guidance.citations.length,
+    citations: guidance.citations,
+    hadConversationContext: guidance.quality.hadConversationContext,
+    hadMilestoneContext: guidance.quality.hadMilestoneContext,
+    hadParentContext: guidance.quality.hadParentContext,
+    createdAt: nowIso(),
+    source: "worker.checkin"
+  });
+
+  return guidance;
 }
 
 export async function saveHomeScreening(payload: {

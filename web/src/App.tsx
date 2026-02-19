@@ -1,6 +1,8 @@
 import { CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   askQuestion,
+  AiCitation,
+  AiUncertainty,
   BlogPost,
   createChildProfile,
   exportParentProfileSnapshot,
@@ -35,6 +37,9 @@ interface ChatMessage {
   fivePart?: FivePartResponse;
   contextLabel?: string;
   sourceLabel?: string;
+  citations?: AiCitation[];
+  uncertainty?: AiUncertainty;
+  provider?: string;
 }
 
 function nowIso(): string {
@@ -829,9 +834,12 @@ export function App() {
           {
             id: `assistant-${Date.now()}`,
             role: "assistant",
-            text: formatFivePart(reply),
+            text: formatFivePart(reply.response),
             createdAt: nowIso(),
-            fivePart: reply,
+            fivePart: reply.response,
+            citations: reply.citations,
+            uncertainty: reply.uncertainty,
+            provider: reply.provider,
             contextLabel: supportContextLabel(ageMonths, domain, chatContext),
             sourceLabel: "Source set: CDC milestones + AAP/IAP screening cadence"
           }
@@ -1631,7 +1639,29 @@ export function App() {
                     <p className="assistant-meta">
                       <span>{message.contextLabel ?? supportContextLabel(ageMonths, domain, chatContext)}</span>
                       <span>{message.sourceLabel ?? "Source set: CDC milestones + AAP/IAP screening cadence"}</span>
+                      <span className={`uncertainty-badge ${message.uncertainty?.level ?? "medium"}`}>
+                        Confidence: {message.uncertainty?.level ?? "medium"}
+                      </span>
+                      {message.provider ? <span>Model: {message.provider}</span> : null}
                     </p>
+                    {message.uncertainty?.reason ? (
+                      <p className="assistant-uncertainty-note">{message.uncertainty.reason}</p>
+                    ) : null}
+                    {message.citations && message.citations.length > 0 ? (
+                      <div className="assistant-citations">
+                        {message.citations.slice(0, 3).map((citation) => (
+                          <a
+                            key={`${message.id}-${citation.url}`}
+                            className="assistant-citation"
+                            href={citation.url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {citation.title}
+                          </a>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   <pre>{message.text}</pre>
