@@ -441,6 +441,8 @@ export async function askQuestion(payload: {
   childId: string;
   question: string;
   domain?: string;
+  conversationContext?: string;
+  parentContext?: string;
 }) {
   const user = await ensureAuthenticated();
   const child = await getChildProfile(payload.childId, user.uid);
@@ -448,7 +450,11 @@ export async function askQuestion(payload: {
 
   const ai = (await callWorker("/v1/ask", {
     question: payload.question,
-    milestoneContext
+    milestoneContext,
+    conversationContext: payload.conversationContext ?? "",
+    parentContext: payload.parentContext ?? "",
+    childAgeMonths: Number(child.ageMonths ?? 0),
+    focusDomain: payload.domain ?? "general"
   })) as {
     response: FivePartResponse;
     provider: string;
@@ -471,6 +477,8 @@ export async function interpretCheckin(payload: {
   childId: string;
   summary: string;
   domain?: string;
+  conversationContext?: string;
+  parentContext?: string;
 }) {
   const user = await ensureAuthenticated();
   const child = await getChildProfile(payload.childId, user.uid);
@@ -478,7 +486,11 @@ export async function interpretCheckin(payload: {
 
   const ai = (await callWorker("/v1/checkin", {
     summary: payload.summary,
-    milestoneContext
+    milestoneContext,
+    conversationContext: payload.conversationContext ?? "",
+    parentContext: payload.parentContext ?? "",
+    childAgeMonths: Number(child.ageMonths ?? 0),
+    focusDomain: payload.domain ?? "general"
   })) as {
     response: FivePartResponse;
     provider: string;

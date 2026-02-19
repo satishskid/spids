@@ -780,18 +780,49 @@ export function App() {
       return;
     }
 
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      text: userText,
+      createdAt: nowIso()
+    };
+    const threadForContext = [...messages, userMessage]
+      .slice(-6)
+      .map((message) => `${message.role === "assistant" ? "SKIDS" : "Parent"}: ${truncate(message.text, 220)}`)
+      .join("\n");
+    const timelineForContext = timeline
+      .slice(0, 3)
+      .map((event) => `${eventLabel(event)}: ${eventPreview(event)}`)
+      .join("\n");
+    const conversationContext = [
+      chatContext ? `Active topic: ${chatContext}` : "",
+      threadForContext ? `Recent chat:\n${threadForContext}` : "",
+      timelineForContext ? `Recent child record:\n${timelineForContext}` : ""
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
     setChatInput("");
-    setMessages((prev) => [
-      ...prev,
-      { id: `user-${Date.now()}`, role: "user", text: userText, createdAt: nowIso() }
-    ]);
+    setMessages((prev) => [...prev, userMessage]);
 
     await withBusy(async () => {
       try {
         const reply =
           mode === "ask"
-            ? await askQuestion({ childId, question: userText, domain })
-            : await interpretCheckin({ childId, summary: userText, domain });
+            ? await askQuestion({
+                childId,
+                question: userText,
+                domain,
+                conversationContext,
+                parentContext: supportContextLabel(ageMonths, domain, chatContext)
+              })
+            : await interpretCheckin({
+                childId,
+                summary: userText,
+                domain,
+                conversationContext,
+                parentContext: supportContextLabel(ageMonths, domain, chatContext)
+              });
 
         setMessages((prev) => [
           ...prev,

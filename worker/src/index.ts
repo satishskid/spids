@@ -41,7 +41,13 @@ const jsonHeaders = {
   "access-control-allow-methods": "GET, POST, OPTIONS"
 };
 
-const unsafePhrases = ["diagnosis", "medication", "prescribe", "emergency treatment", "lab result"];
+const blockedInjectionPhrases = [
+  "ignore previous instructions",
+  "ignore all prior instructions",
+  "system prompt",
+  "reveal hidden prompt",
+  "bypass safety"
+];
 const stopWords = new Set([
   "the",
   "and",
@@ -863,11 +869,14 @@ async function resolveBlogArticle(link: string): Promise<BlogArticle | null> {
   return article;
 }
 
-function enforceSafety(input: string): void {
+function enforceInputPolicy(input: string): void {
   const lowered = input.toLowerCase();
-  for (const phrase of unsafePhrases) {
+  if (input.trim().length > 1800) {
+    throw new Error("Input is too long. Please shorten your message.");
+  }
+  for (const phrase of blockedInjectionPhrases) {
     if (lowered.includes(phrase)) {
-      throw new Error("Request violates medical safety policy");
+      throw new Error("Request contains unsafe instruction override content.");
     }
   }
 }
@@ -901,9 +910,13 @@ function applySupportProgramFraming(input: Partial<FivePartResponse>): FivePartR
       ["checkup", "well-child", "pediatric"]
     ),
     whenToSeekClinicalScreening: appendIfMissing(
-      normalized.whenToSeekClinicalScreening,
-      "Seek pediatric review sooner for regression, loss of skills, persistent asymmetry, or ongoing concern.",
-      ["regression", "loss of skills", "asymmetry", "ongoing concern", "pediatric review"]
+      appendIfMissing(
+        normalized.whenToSeekClinicalScreening,
+        "Seek pediatric review sooner for regression, loss of skills, persistent asymmetry, or ongoing concern.",
+        ["regression", "loss of skills", "asymmetry", "ongoing concern", "pediatric review"]
+      ),
+      "If there is breathing difficulty, persistent vomiting, seizure, severe dehydration, or unusual drowsiness, seek urgent in-person care immediately.",
+      ["urgent", "emergency", "breathing difficulty", "seizure", "dehydration", "immediately"]
     )
   };
 }
@@ -918,21 +931,67 @@ function extractJson(text: string): unknown {
   return JSON.parse(stripped);
 }
 
-function buildSystemPrompt(mode: "ask" | "checkin", input: string, context: string): string {
+function clipText(value: string, size = 1400): string {
+  const normalized = value.trim();
+  if (normalized.length <= size) {
+    return normalized;
+  }
+  return `${normalized.slice(0, size - 1)}...`;
+}
+
+function parseModelResponse(rawText: string): FivePartResponse {
+  try {
+    return applySupportProgramFraming(extractJson(rawText) as Partial<FivePartResponse>);
+  } catch {
+    const plain = cleanText(rawText);
+    return applySupportProgramFraming({
+      whatIsHappeningDevelopmentally: plain || "Continue observing and tracking changes over time.",
+      whatParentsMayNotice: "Patterns can vary by child and by day. Watch consistency over 1-2 weeks.",
+      whatIsNormalVariation: "Some variation in pace is common, especially during growth transitions.",
+      whatToDoAtHome: "Use short daily routines, log observations, and discuss trends during routine checkups.",
+      whenToSeekClinicalScreening:
+        "Seek pediatric review sooner for regression, loss of skills, persistent asymmetry, or sustained parent concern."
+    });
+  }
+}
+
+function buildSystemPrompt(
+  mode: "ask" | "checkin",
+  input: string,
+  context: string,
+  options?: {
+    conversationContext?: string;
+    parentContext?: string;
+    childAgeMonths?: number;
+    focusDomain?: string;
+  }
+): string {
+  const focusDomain = options?.focusDomain?.trim() || "general";
+  const ageContext =
+    Number.isFinite(Number(options?.childAgeMonths)) && Number(options?.childAgeMonths) >= 0
+      ? `${Number(options?.childAgeMonths)} months`
+      : "unknown";
   return [
     "You are SKIDS Pediatric Companion for a parent support and involvement program.",
     "Core philosophy: encourage wonder about child growth, science-backed learning, and regular pediatric checkups.",
     "Tone: empathetic, calm, practical, non-judgmental, medically accurate, plain language.",
-    "Never diagnose disease, prescribe treatment, interpret lab results, or provide emergency advice.",
+    "Start with one short validating sentence that acknowledges the parent's concern.",
+    "Do not diagnose disease, prescribe treatment, or interpret lab results.",
+    "Do not provide emergency treatment plans. For immediate danger, direct the parent to urgent in-person care immediately.",
     "You are not a replacement for pediatric evaluation; clearly state when clinical review is appropriate.",
     "Use milestone context to explain where the child may be now, what to observe next, and what parents can do at home.",
+    "If parent asks about diagnosis or medication, acknowledge concern and redirect to pediatric review safely.",
     "Gently reinforce that parent observations become part of a longitudinal child health record.",
     "Return ONLY JSON with exactly these keys:",
     "whatIsHappeningDevelopmentally, whatParentsMayNotice, whatIsNormalVariation, whatToDoAtHome, whenToSeekClinicalScreening",
     "In section 5, include clear thresholds for when to involve pediatrician/screening.",
+    "Keep each section concise and parent-friendly (2-4 sentences).",
     `Mode: ${mode}`,
-    `Parent input: ${input}`,
-    `Milestone context: ${context || "none provided"}`
+    `Child profile context: age=${ageContext}, domain=${focusDomain}`,
+    `Program context: ${clipText(options?.parentContext || "none provided", 220)}`,
+    `Parent input: ${clipText(input, 700)}`,
+    `Milestone context: ${clipText(context || "none provided", 550)}`,
+    `Conversation context: ${clipText(options?.conversationContext || "none provided", 750)}`
   ].join("\n");
 }
 
@@ -987,7 +1046,7 @@ async function callGemini(prompt: string, env: Env): Promise<FivePartResponse> {
   };
 
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
-  return applySupportProgramFraming(extractJson(text) as Partial<FivePartResponse>);
+  return parseModelResponse(text);
 }
 
 async function callGroq(prompt: string, env: Env): Promise<FivePartResponse> {
@@ -1017,7 +1076,7 @@ async function callGroq(prompt: string, env: Env): Promise<FivePartResponse> {
     choices?: Array<{ message?: { content?: string } }>;
   };
   const text = data.choices?.[0]?.message?.content ?? "{}";
-  return applySupportProgramFraming(extractJson(text) as Partial<FivePartResponse>);
+  return parseModelResponse(text);
 }
 
 function getBearerToken(request: Request): string | null {
@@ -1043,6 +1102,10 @@ async function handleAiRequest(request: Request, env: Env, mode: "ask" | "checki
     question?: string;
     summary?: string;
     milestoneContext?: string;
+    conversationContext?: string;
+    parentContext?: string;
+    childAgeMonths?: number;
+    focusDomain?: string;
   };
 
   const sourceText = mode === "ask" ? payload.question ?? "" : payload.summary ?? "";
@@ -1051,12 +1114,17 @@ async function handleAiRequest(request: Request, env: Env, mode: "ask" | "checki
   }
 
   try {
-    enforceSafety(sourceText);
+    enforceInputPolicy(sourceText);
   } catch (error) {
     return response({ error: error instanceof Error ? error.message : "Unsafe input" }, 400);
   }
 
-  const prompt = buildSystemPrompt(mode, sourceText, payload.milestoneContext ?? "");
+  const prompt = buildSystemPrompt(mode, sourceText, payload.milestoneContext ?? "", {
+    conversationContext: payload.conversationContext ?? "",
+    parentContext: payload.parentContext ?? "",
+    childAgeMonths: Number(payload.childAgeMonths ?? Number.NaN),
+    focusDomain: payload.focusDomain ?? "general"
+  });
 
   try {
     const gemini = await callGemini(prompt, env);
