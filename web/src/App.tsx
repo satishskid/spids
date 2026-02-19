@@ -26,6 +26,9 @@ interface ChatMessage {
   role: ChatRole;
   text: string;
   createdAt: string;
+  fivePart?: FivePartResponse;
+  contextLabel?: string;
+  sourceLabel?: string;
 }
 
 function nowIso(): string {
@@ -133,6 +136,13 @@ function pointsFromText(text: string, max = 3): string[] {
     .map((part) => part.trim())
     .filter((part) => part.length > 0)
     .slice(0, max);
+}
+
+function supportContextLabel(ageMonths: number, domain: string, contextLabel = ""): string {
+  if (contextLabel.trim().length > 0) {
+    return contextLabel;
+  }
+  return `${ageMonths} months • ${domainLabel(domain)} focus`;
 }
 
 const WALL_ZOOM_CONFIG: Record<
@@ -501,7 +511,10 @@ export function App() {
             id: `assistant-${Date.now()}`,
             role: "assistant",
             text: formatFivePart(reply),
-            createdAt: nowIso()
+            createdAt: nowIso(),
+            fivePart: reply,
+            contextLabel: supportContextLabel(ageMonths, domain, chatContext),
+            sourceLabel: "Source set: CDC milestones + AAP/IAP screening cadence"
           }
         ]);
         setStatusLine("Guidance generated");
@@ -965,7 +978,35 @@ export function App() {
             {messages.map((message) => (
               <article className={`message ${message.role}`} key={message.id}>
                 <div className="message-role">{message.role === "assistant" ? "SKIDS Guide" : "You"}</div>
-                <pre>{message.text}</pre>
+                {message.role === "assistant" && message.fivePart ? (
+                  <div className="assistant-structured">
+                    <p className="assistant-summary">{message.fivePart.whatIsHappeningDevelopmentally}</p>
+                    <div className="five-part-grid">
+                      <section className="five-part-card">
+                        <h4>What parents may notice</h4>
+                        <p>{message.fivePart.whatParentsMayNotice}</p>
+                      </section>
+                      <section className="five-part-card">
+                        <h4>What is normal variation</h4>
+                        <p>{message.fivePart.whatIsNormalVariation}</p>
+                      </section>
+                      <section className="five-part-card">
+                        <h4>What to do at home</h4>
+                        <p>{message.fivePart.whatToDoAtHome}</p>
+                      </section>
+                      <section className="five-part-card">
+                        <h4>When to seek clinical screening</h4>
+                        <p>{message.fivePart.whenToSeekClinicalScreening}</p>
+                      </section>
+                    </div>
+                    <p className="assistant-meta">
+                      <span>{message.contextLabel ?? supportContextLabel(ageMonths, domain, chatContext)}</span>
+                      <span>{message.sourceLabel ?? "Source set: CDC milestones + AAP/IAP screening cadence"}</span>
+                    </p>
+                  </div>
+                ) : (
+                  <pre>{message.text}</pre>
+                )}
               </article>
             ))}
           </div>

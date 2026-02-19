@@ -1472,7 +1472,7 @@ button {
 }
 
 .message {
-  max-width: min(780px, 93%);
+  max-width: min(760px, 90%);
   border-radius: 16px;
   border: 1px solid #e5dfd5;
   padding: 10px 12px;
@@ -1503,7 +1503,66 @@ button {
   margin: 0;
   font: inherit;
   white-space: pre-wrap;
-  line-height: 1.45;
+  line-height: 1.52;
+}
+
+.assistant-structured {
+  display: grid;
+  gap: 8px;
+}
+
+.assistant-summary {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #2e4259;
+}
+
+.five-part-grid {
+  display: grid;
+  gap: 7px;
+}
+
+.five-part-card {
+  border: 1px solid #dde7f2;
+  border-radius: 11px;
+  background: #f8fbff;
+  padding: 8px 9px;
+}
+
+.five-part-card h4 {
+  margin: 0 0 3px;
+  font-family: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #395774;
+  text-transform: uppercase;
+}
+
+.five-part-card p {
+  margin: 0;
+  color: #39506b;
+  font-size: 0.86rem;
+  line-height: 1.42;
+}
+
+.assistant-meta {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.assistant-meta span {
+  display: inline-flex;
+  border: 1px solid #d7e2ed;
+  border-radius: 999px;
+  background: #f5f9fd;
+  color: #536a83;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 8px;
 }
 
 .composer {
