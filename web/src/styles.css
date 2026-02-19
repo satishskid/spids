@@ -673,6 +673,7 @@ button {
   text-align: left;
   z-index: 3;
   animation: none;
+  transition: opacity 180ms ease, transform 180ms ease;
 }
 
 .milestone-line-track {
@@ -745,6 +746,7 @@ button {
   color: #374d67;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid color-mix(in srgb, var(--line-main) 30%, #d8e2ec);
+  backdrop-filter: blur(2px);
 }
 
 .milestone-line.near .milestone-line-label,
@@ -761,6 +763,12 @@ button {
   background: linear-gradient(90deg, var(--line-main), var(--line-glow));
 }
 
+.milestone-line:hover,
+.milestone-line:focus-visible,
+.milestone-line.active {
+  transform: translateY(50%) translateX(1px);
+}
+
 .milestone-line.major:hover .milestone-line-track,
 .milestone-line.major:focus-visible .milestone-line-track,
 .milestone-line.major.active .milestone-line-track {
@@ -771,6 +779,10 @@ button {
 .milestone-line:focus-visible .milestone-line-node,
 .milestone-line.active .milestone-line-node {
   transform: translateY(-50%) scale(1.18);
+}
+
+.milestone-line:active .milestone-line-node {
+  transform: translateY(-50%) scale(1.24);
 }
 
 .milestone-line.soon {
@@ -1219,6 +1231,17 @@ button {
   100% {
     opacity: 1;
     transform: translateY(50%);
+  }
+}
+
+@keyframes messageRise {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -1791,6 +1814,7 @@ button {
   gap: 9px;
   align-content: start;
   background: linear-gradient(180deg, #fff 0%, #faf7f2 100%);
+  scroll-behavior: smooth;
 }
 
 .chat-suggestions {
@@ -1812,6 +1836,16 @@ button {
   font-weight: 700;
   padding: 5px 9px;
   white-space: nowrap;
+  transition: transform 130ms ease, border-color 130ms ease, background-color 130ms ease;
+}
+
+.suggestion-chip:hover {
+  border-color: #d5c0aa;
+  background: #fffaf4;
+}
+
+.suggestion-chip:active {
+  transform: translateY(1px);
 }
 
 .message {
@@ -1820,6 +1854,8 @@ button {
   border: 1px solid #e5dfd5;
   padding: 10px 12px;
   box-shadow: 0 11px 20px -22px rgba(35, 45, 67, 0.42);
+  animation: messageRise 220ms ease both;
+  transition: transform 130ms ease, box-shadow 130ms ease;
 }
 
 .message.user {
@@ -1833,6 +1869,11 @@ button {
   justify-self: start;
   background: #fff;
   max-width: min(690px, 84%);
+}
+
+.message:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 24px -24px rgba(35, 45, 67, 0.52);
 }
 
 .message-role {
@@ -1945,6 +1986,10 @@ button {
   gap: 10px;
   align-items: end;
   background: #fff;
+}
+
+.composer .primary {
+  min-height: 44px;
 }
 
 .sheet-backdrop {
@@ -2156,7 +2201,7 @@ button {
   }
 
   .card {
-    padding: 10px;
+    padding: 11px;
   }
 
   .hero-top {
@@ -2221,16 +2266,22 @@ button {
   }
 
   .composer textarea {
-    min-height: 62px;
+    min-height: 66px;
+    font-size: 16px;
+    line-height: 1.42;
   }
 
   .messages {
-    max-height: 46vh;
+    max-height: 52vh;
+    padding: 12px;
+    gap: 10px;
   }
 
   .vertical-scale-canvas {
-    height: 52vh;
-    min-height: 350px;
+    --axis-x: 21%;
+    height: 56vh;
+    min-height: 380px;
+    border-radius: 14px;
   }
 
   .atlas-head {
@@ -2274,17 +2325,23 @@ button {
   }
 
   .milestone-line {
-    height: 15px;
+    height: 16px;
   }
 
   .milestone-line.near .milestone-line-label {
     display: none;
   }
 
+  .milestone-line.active .milestone-line-label,
+  .milestone-line:focus-visible .milestone-line-label {
+    display: inline-block;
+  }
+
   .milestone-line-label {
-    font-size: 0.66rem;
-    left: 10px;
+    font-size: 0.68rem;
+    left: 11px;
     max-width: calc(100% - 22px);
+    padding: 4px 9px;
   }
 
   .atlas-stream-card {
@@ -2302,6 +2359,77 @@ button {
   .sheet-note {
     font-size: 0.71rem;
   }
+
+  .chat {
+    min-height: 82vh;
+  }
+
+  .chat-head {
+    padding: 11px;
+  }
+
+  .chat-head h2 {
+    font-size: 1.16rem;
+  }
+
+  .chat-head p {
+    font-size: 0.88rem;
+    line-height: 1.42;
+  }
+
+  .chat-controls select,
+  .chat-controls button {
+    min-height: 42px;
+  }
+
+  .chat-suggestions {
+    padding: 8px 10px 0;
+    gap: 7px;
+    scroll-snap-type: x mandatory;
+  }
+
+  .suggestion-chip {
+    scroll-snap-align: start;
+    font-size: 0.73rem;
+    padding: 6px 10px;
+  }
+
+  .message {
+    max-width: 94%;
+    border-radius: 15px;
+    padding: 11px 12px;
+  }
+
+  .message-role {
+    margin-bottom: 5px;
+    font-size: 0.69rem;
+    letter-spacing: 0.05em;
+  }
+
+  .assistant-summary,
+  .five-part-card p,
+  .message pre {
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+
+  .composer {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(6px);
+  }
+
+  .composer .primary {
+    min-height: 46px;
+  }
+
+  .atlas-check-row,
+  .atlas-stream-card p,
+  .muted.wall-subtext {
+    font-size: 0.84rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2310,6 +2438,7 @@ button {
   .vertical-bead.pulse .bead-core,
   .milestone-line,
   .milestone-line.pulse .milestone-line-node,
+  .message,
   .signal-node,
   .active-milestone-bubble {
     animation: none;
