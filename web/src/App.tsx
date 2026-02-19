@@ -688,7 +688,7 @@ export function App() {
             <div className="atlas-head">
               <h3>
                 <span className="atlas-dot" />
-                ATLAS
+                Milestone Atlas
               </h3>
               <div className="atlas-head-actions">
                 <button className="ghost mini" type="button" onClick={() => void refreshTimeline()}>
@@ -710,17 +710,20 @@ export function App() {
               </div>
             </div>
 
-            <p className="muted wall-subtext">
-              {ageMonths} months • {domainLabel(domain)} focus
-            </p>
+            <p className="muted wall-subtext">Focused on {ageMonths} months • {domainLabel(domain)} domain</p>
             <p className="muted wall-count">{displayMilestones.length} milestones loaded</p>
             <p className="muted wall-evidence">Evidence set: CDC milestones + AAP/IAP screening cadence.</p>
+            <div className="scale-legend">
+              <span className="legend-pill near">Now</span>
+              <span className="legend-pill soon">Soon</span>
+              <span className="legend-pill later">Later</span>
+            </div>
 
             {milestoneError ? <p className="muted">Milestone issue: {milestoneError}</p> : null}
 
             <div className="atlas-checklist">
               {completedMilestones.length === 0 ? (
-                <div className="atlas-check-row muted">No milestones logged as completed yet.</div>
+                <div className="atlas-check-row muted">No parent-confirmed milestones yet. Start with one check-in.</div>
               ) : (
                 completedMilestones.map((milestone, index) => (
                   <div key={`done-${milestone.id}`} className="atlas-check-row">
@@ -733,7 +736,7 @@ export function App() {
             </div>
 
             <div className="atlas-divider">
-              <span>ACTIVE STREAM</span>
+              <span>IN FOCUS NOW</span>
             </div>
 
             <div className="vertical-scale-canvas atlas-canvas">
@@ -823,7 +826,7 @@ export function App() {
             {upcomingMilestones.length > 0 ? (
               <>
                 <div className="atlas-divider">
-                  <span>UPCOMING</span>
+                  <span>NEXT UP</span>
                 </div>
                 <div className="upcoming-list">
                   {upcomingMilestones.map((milestone) => (
@@ -853,7 +856,7 @@ export function App() {
                 onClick={() => onAskMilestone(quickPromptMilestone)}
                 disabled={isBusy || !!authError}
               >
-                Ask SKIDS about current focus
+                Ask SKIDS about this milestone
               </button>
             ) : null}
           </section>

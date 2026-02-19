@@ -290,16 +290,16 @@ button {
   align-items: center;
   gap: 8px;
   font-family: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
-  font-size: 2rem;
-  font-weight: 900;
-  letter-spacing: -0.02em;
+  font-size: 1.48rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
 .atlas-dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
-  background: #27c175;
+  background: #4bc58b;
   display: inline-block;
 }
 
@@ -321,9 +321,9 @@ button {
 }
 
 .atlas-zoom-options .wall-zoom-pill.active {
-  background: #25364b;
+  background: #2f435a;
   color: #fff;
-  border-color: #25364b;
+  border-color: #2f435a;
 }
 
 .atlas-checklist {
@@ -364,8 +364,8 @@ button {
   align-items: center;
   gap: 8px;
   color: #7f8da0;
-  font-size: 0.72rem;
-  letter-spacing: 0.18em;
+  font-size: 0.69rem;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
@@ -439,9 +439,9 @@ button {
   --legend-now-border: #e7c0a3;
   --legend-now-ink: #8e4f2d;
   background:
-    radial-gradient(140% 70% at 0% 0%, #fff4e8 0%, transparent 60%),
-    radial-gradient(140% 70% at 100% 0%, #ecf7ff 0%, transparent 65%),
-    linear-gradient(180deg, #ffffff 0%, #fbf8f2 100%);
+    radial-gradient(120% 62% at 0% 0%, #fff5ea 0%, transparent 58%),
+    radial-gradient(120% 62% at 100% 0%, #eef7ff 0%, transparent 60%),
+    linear-gradient(180deg, #ffffff 0%, #fcfaf5 100%);
   min-height: 0;
   overflow: visible;
 }
@@ -524,15 +524,15 @@ button {
 
 .atlas-canvas {
   border-radius: 10px;
-  border: 1.5px solid #2c3a4e;
+  border: 1.25px solid #3a4a5e;
   background:
     linear-gradient(180deg, #f8fbff 0%, #f5f7fb 100%),
     repeating-linear-gradient(
       0deg,
-      rgba(84, 109, 140, 0.06) 0px,
-      rgba(84, 109, 140, 0.06) 1px,
+      rgba(84, 109, 140, 0.05) 0px,
+      rgba(84, 109, 140, 0.05) 1px,
       transparent 1px,
-      transparent 22px
+      transparent 24px
     );
 }
 
@@ -545,9 +545,9 @@ button {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(60% 48% at 86% 18%, rgba(179, 210, 237, 0.35), transparent 72%),
-    radial-gradient(44% 34% at 76% 78%, rgba(255, 205, 171, 0.3), transparent 72%);
-  animation: wallAura 6.4s ease-in-out infinite alternate;
+    radial-gradient(58% 42% at 86% 18%, rgba(179, 210, 237, 0.25), transparent 72%),
+    radial-gradient(40% 30% at 76% 78%, rgba(255, 205, 171, 0.2), transparent 72%);
+  opacity: 0.7;
   pointer-events: none;
 }
 
@@ -641,13 +641,13 @@ button {
   --line-glow: color-mix(in srgb, var(--line-main) 40%, #ffffff);
   position: absolute;
   transform: translateY(50%);
-  height: 14px;
+  height: 13px;
   border: 0;
   background: transparent;
   padding: 0;
   text-align: left;
   z-index: 3;
-  animation: lineFloat 4.2s ease-in-out infinite;
+  animation: none;
 }
 
 .milestone-line-track {
@@ -656,10 +656,10 @@ button {
   right: 0;
   top: 50%;
   transform: translateY(-50%);
-  height: 1.4px;
+  height: 1.3px;
   border-radius: 999px;
   background: linear-gradient(90deg, var(--line-main), var(--line-soft));
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.52), 0 5px 10px -12px rgba(31, 46, 68, 0.75);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.56), 0 4px 10px -13px rgba(31, 46, 68, 0.6);
 }
 
 .milestone-line-node {
@@ -667,12 +667,12 @@ button {
   left: -5px;
   top: 50%;
   transform: translateY(-50%);
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 999px;
   border: 1.5px solid #fff;
   background: var(--line-main);
-  box-shadow: 0 0 0 1px var(--line-main), 0 2px 8px -6px rgba(31, 46, 68, 0.8);
+  box-shadow: 0 0 0 1px var(--line-main), 0 2px 7px -6px rgba(31, 46, 68, 0.68);
 }
 
 .milestone-line.minor .milestone-line-track {
@@ -688,13 +688,13 @@ button {
 }
 
 .milestone-line.major .milestone-line-track {
-  height: 3.1px;
+  height: 2.8px;
   opacity: 1;
 }
 
 .milestone-line.major .milestone-line-node {
-  width: 11px;
-  height: 11px;
+  width: 10px;
+  height: 10px;
   left: -6px;
   border-width: 2px;
 }
@@ -749,11 +749,11 @@ button {
 }
 
 .milestone-line.soon {
-  opacity: 0.78;
+  opacity: 0.86;
 }
 
 .milestone-line.later {
-  opacity: 0.74;
+  opacity: 0.64;
 }
 
 .milestone-line.active {
@@ -930,11 +930,11 @@ button {
   right: 8px;
   transform: translateY(50%);
   width: 44%;
-  border: 1px solid #dfe8f1;
+  border: 1px solid #dde6ef;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.86);
+  background: rgba(255, 255, 255, 0.9);
   padding: 6px 7px;
-  box-shadow: 0 6px 14px -16px rgba(35, 45, 67, 0.5);
+  box-shadow: 0 6px 14px -17px rgba(35, 45, 67, 0.44);
   animation: signalFadeIn 320ms ease both;
 }
 
@@ -1009,18 +1009,18 @@ button {
 
 .atlas-stream-card {
   text-align: left;
-  border: 1.5px solid #2c3a4e;
+  border: 1.1px solid #bfcddd;
   border-radius: 14px;
   background: linear-gradient(160deg, #ffffff 0%, #fbfcff 100%);
   padding: 10px 11px;
   display: grid;
   gap: 4px;
-  box-shadow: 2px 2px 0 0 #2c3a4e;
+  box-shadow: 0 8px 18px -19px rgba(41, 55, 75, 0.55);
 }
 
 .atlas-stream-card:hover {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0 0 #2c3a4e;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px -20px rgba(41, 55, 75, 0.62);
 }
 
 .atlas-stream-card h5 {
@@ -1774,13 +1774,17 @@ button {
 
 @media (max-width: 780px) {
   .shell {
-    width: calc(100% - 12px);
-    margin: 7px auto;
+    width: calc(100% - 8px);
+    margin: 6px auto;
     gap: 10px;
   }
 
   h1 {
     font-size: 1.45rem;
+  }
+
+  .card {
+    padding: 10px;
   }
 
   .hero-top {
@@ -1802,31 +1806,56 @@ button {
 
   .chat-head {
     display: grid;
+    gap: 6px;
   }
 
   .chat-controls {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
   }
 
   .composer {
     grid-template-columns: 1fr;
+    padding: 10px;
+  }
+
+  .composer textarea {
+    min-height: 62px;
   }
 
   .messages {
-    max-height: 52vh;
+    max-height: 46vh;
   }
 
   .vertical-scale-canvas {
-    height: 56vh;
-    min-height: 380px;
+    height: 52vh;
+    min-height: 350px;
+  }
+
+  .atlas-head {
+    display: grid;
+    gap: 6px;
+  }
+
+  .atlas-head-actions {
+    justify-items: start;
+  }
+
+  .atlas-check-row {
+    font-size: 0.87rem;
+    grid-template-columns: auto 1fr;
   }
 
   .wall-zoom-options {
     flex-wrap: wrap;
   }
 
+  .atlas-zoom-options .wall-zoom-pill {
+    font-size: 0.66rem;
+    padding: 4px 7px;
+  }
+
   .signal-node {
-    width: 48%;
+    display: none;
   }
 
   .vertical-bead {
@@ -1843,12 +1872,33 @@ button {
   }
 
   .milestone-line {
-    height: 16px;
+    height: 15px;
+  }
+
+  .milestone-line.near .milestone-line-label {
+    display: none;
   }
 
   .milestone-line-label {
     font-size: 0.66rem;
-    max-width: calc(100% - 10px);
+    left: 10px;
+    max-width: calc(100% - 22px);
+  }
+
+  .atlas-stream-card {
+    padding: 9px 9px;
+  }
+
+  .atlas-stream-card h5 {
+    font-size: 0.98rem;
+  }
+
+  .atlas-stream-card p {
+    font-size: 0.84rem;
+  }
+
+  .sheet-note {
+    font-size: 0.71rem;
   }
 }
 
