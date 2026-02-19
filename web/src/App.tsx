@@ -56,12 +56,12 @@ function eventLabel(event: TimelineEvent): string {
     return "Chat";
   }
   if (event.type === "dailyCheckin") {
-    return "Check-in";
+    return "Daily check-in";
   }
   if (event.type === "homeScreening") {
-    return "Home check";
+    return "Parent observation";
   }
-  return "Clinic report";
+  return "Clinic screening";
 }
 
 function truncate(text: string, size = 110): string {
@@ -80,9 +80,9 @@ function eventPreview(event: TimelineEvent): string {
     return truncate(String(payload.summary ?? "Daily check-in saved."), 46);
   }
   if (event.type === "homeScreening") {
-    return truncate(String(payload.notes ?? "Home screening observation logged."), 46);
+    return truncate(String(payload.notes ?? "Parent observation logged."), 46);
   }
-  return truncate(String(payload.credentialType ?? "Clinic credential imported."), 46);
+  return truncate(String(payload.credentialType ?? "Clinic report appended."), 46);
 }
 
 function domainLabel(value: string): string {
@@ -200,7 +200,7 @@ export function App() {
       role: "assistant",
       createdAt: nowIso(),
       text:
-        "I am your SKIDS guide. Ask anything about your child development and I will respond with calm, practical, and safe guidance."
+        "I am your SKIDS pediatric companion. I help you understand the wonder of your child's growth with empathetic, science-based guidance. I am not a diagnostic tool, and I will tell you when to involve your pediatrician."
     }
   ]);
 
@@ -532,7 +532,7 @@ export function App() {
     event.preventDefault();
     await withBusy(async () => {
       await saveHomeScreening({ childId, domain, notes: screeningNotes, resultCategory });
-      setStatusLine("Home check saved");
+      setStatusLine("Parent observation saved");
       setScreeningNotes("");
       await refreshTimeline();
     });
@@ -547,11 +547,11 @@ export function App() {
         {
           id: `assistant-export-${Date.now()}`,
           role: "assistant",
-          text: `Parent share summary prepared:\n\n${JSON.stringify(exported.payload, null, 2)}`,
+          text: `Child health record export prepared for your pediatric encounter:\n\n${JSON.stringify(exported.payload, null, 2)}`,
           createdAt: nowIso()
         }
       ]);
-      setStatusLine("Share summary generated");
+      setStatusLine("Child health record export ready");
     });
   }
 
@@ -561,7 +561,11 @@ export function App() {
       try {
         const credential = JSON.parse(credentialJson) as Record<string, unknown>;
         const imported = await importScreeningCredential({ childId, credential });
-        setStatusLine(imported.success ? "Clinic report added" : "Clinic report validation failed");
+        setStatusLine(
+          imported.success
+            ? "Clinic report appended to child health record"
+            : "Clinic report format check failed"
+        );
         await refreshTimeline();
       } catch {
         setStatusLine("Clinic report format is invalid");
@@ -575,7 +579,8 @@ export function App() {
         id: "welcome-reset",
         role: "assistant",
         createdAt: nowIso(),
-        text: "New chat started. Tell me what you observed today and I will guide you step by step."
+        text:
+          "New chat started. Tell me what you observed today. I will guide you step by step and help you decide what to monitor and when to involve your pediatrician."
       }
     ]);
   }
@@ -848,7 +853,7 @@ export function App() {
             <button className="ghost side-toggle" type="button" onClick={() => setSidebarOpen((v) => !v)}>
               {sidebarOpen ? "Hide milestone wall" : "Show milestone wall"}
             </button>
-            <p className="muted">Calm daily guidance for every parent question.</p>
+            <p className="muted">Nudging confident parenting through growth science and regular checkups.</p>
           </div>
 
           {authError ? (
@@ -938,13 +943,17 @@ export function App() {
           <header className="chat-head">
             <div>
               <h2>SKIDS Chat</h2>
-              <p>Ask anything and receive empathetic, structured guidance.</p>
+              <p>Ask anything. SKIDS responds like an empathetic pediatric companion with safe medical accuracy.</p>
               {chatContext ? <span className="chat-context">Context: {chatContext}</span> : null}
+              <span className="chat-note">
+                Parent support program only. Not a diagnosis tool. Every interaction is saved into the child health
+                record.
+              </span>
             </div>
             <div className="chat-controls">
               <select value={chatMode} onChange={(e) => setChatMode(e.target.value as ChatMode)}>
-                <option value="ask">Question mode</option>
-                <option value="checkin">Daily check-in mode</option>
+                <option value="ask">Ask pediatric companion</option>
+                <option value="checkin">Log daily observation</option>
               </select>
               <button className="ghost" type="button" onClick={onNewChat}>
                 New chat
@@ -967,21 +976,21 @@ export function App() {
               className="suggestion-chip"
               onClick={() => setChatInput("Is this milestone delay still within normal variation?")}
             >
-              Is this still normal?
+              Is this within normal variation?
             </button>
             <button
               type="button"
               className="suggestion-chip"
               onClick={() => setChatInput("Give me 3 practical at-home exercises for this week.")}
             >
-              Home activities
+              Home growth activities
             </button>
             <button
               type="button"
               className="suggestion-chip"
               onClick={() => setChatInput("When should I seek a clinical screening?")}
             >
-              When to screen?
+              When to see pediatrician?
             </button>
           </div>
 
@@ -991,8 +1000,8 @@ export function App() {
               onChange={(e) => setChatInput(e.target.value)}
               placeholder={
                 chatMode === "ask"
-                  ? "Ask your concern in natural language..."
-                  : "Share today observations for check-in interpretation..."
+                  ? "Ask any growth, milestone, behavior, or parenting concern..."
+                  : "Share today's observations to log and interpret..."
               }
             />
             <button className="primary" type="submit" disabled={isBusy || !canUseChat}>
@@ -1004,15 +1013,15 @@ export function App() {
         <details className="card occasional-actions">
           <summary>Support tools (occasional)</summary>
           <p className="muted occasional-note">
-            These are not everyday tasks. Use only when you want to log a formal check, create a share file, or
-            import a clinic report.
+            These are occasional tasks: log structured observations, export child health record, or append clinic
+            screening reports.
           </p>
 
           <details className="mini-action">
             <summary>Home screening check-in</summary>
             <form className="stack" onSubmit={onSaveScreening}>
               <p className="muted">
-                Home screening means short parent observations that help track progress between clinic visits.
+                Log short parent observations between clinic visits. This passively builds your child health record.
               </p>
               <textarea
                 value={screeningNotes}
@@ -1036,19 +1045,19 @@ export function App() {
           </details>
 
           <details className="mini-action">
-            <summary>Export parent summary</summary>
+            <summary>Export child health record</summary>
             <form className="stack" onSubmit={onExportProfile}>
-              <p className="muted">Generate a structured summary for school, therapist, or clinician.</p>
+              <p className="muted">Generate a structured record to share with your pediatrician or therapist.</p>
               <button className="ghost" type="submit" disabled={isBusy || !!authError}>
-                Generate share summary
+                Export record
               </button>
             </form>
           </details>
 
           <details className="mini-action">
-            <summary>Import clinic report</summary>
+            <summary>Append clinic screening report</summary>
             <form className="stack" onSubmit={onImportCredential}>
-              <p className="muted">Paste clinic report data provided by your clinic.</p>
+              <p className="muted">Paste clinic screening data provided by your clinic.</p>
               <textarea
                 value={credentialJson}
                 onChange={(e) => setCredentialJson(e.target.value)}
@@ -1098,7 +1107,9 @@ export function App() {
                 ) : null}
               </p>
             ) : null}
-            <p className="sheet-note">Educational guidance only. For diagnosis, use pediatric screening.</p>
+            <p className="sheet-note">
+              Parent support guidance only. For diagnosis or treatment decisions, use pediatric evaluation.
+            </p>
 
             <div className="sheet-points">
               <h4>What to look for</h4>

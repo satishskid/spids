@@ -405,6 +405,31 @@ function ensureFivePart(input: Partial<FivePartResponse>): FivePartResponse {
   };
 }
 
+function appendIfMissing(base: string, sentence: string, cues: string[]): string {
+  const lowered = base.toLowerCase();
+  if (cues.some((cue) => lowered.includes(cue))) {
+    return base;
+  }
+  return `${base.trim()} ${sentence}`.trim();
+}
+
+function applySupportProgramFraming(input: Partial<FivePartResponse>): FivePartResponse {
+  const normalized = ensureFivePart(input);
+  return {
+    ...normalized,
+    whatToDoAtHome: appendIfMissing(
+      normalized.whatToDoAtHome,
+      "Track observations and share them during regular pediatric checkups.",
+      ["checkup", "well-child", "pediatric"]
+    ),
+    whenToSeekClinicalScreening: appendIfMissing(
+      normalized.whenToSeekClinicalScreening,
+      "Seek pediatric review sooner for regression, loss of skills, persistent asymmetry, or ongoing concern.",
+      ["regression", "loss of skills", "asymmetry", "ongoing concern", "pediatric review"]
+    )
+  };
+}
+
 function extractJson(text: string): unknown {
   const stripped = text
     .replace(/^```json\s*/i, "")
@@ -417,10 +442,16 @@ function extractJson(text: string): unknown {
 
 function buildSystemPrompt(mode: "ask" | "checkin", input: string, context: string): string {
   return [
-    "You are a pediatric developmental support assistant.",
+    "You are SKIDS Pediatric Companion for a parent support and involvement program.",
+    "Core philosophy: encourage wonder about child growth, science-backed learning, and regular pediatric checkups.",
+    "Tone: empathetic, calm, practical, non-judgmental, medically accurate, plain language.",
     "Never diagnose disease, prescribe treatment, interpret lab results, or provide emergency advice.",
+    "You are not a replacement for pediatric evaluation; clearly state when clinical review is appropriate.",
+    "Use milestone context to explain where the child may be now, what to observe next, and what parents can do at home.",
+    "Gently reinforce that parent observations become part of a longitudinal child health record.",
     "Return ONLY JSON with exactly these keys:",
     "whatIsHappeningDevelopmentally, whatParentsMayNotice, whatIsNormalVariation, whatToDoAtHome, whenToSeekClinicalScreening",
+    "In section 5, include clear thresholds for when to involve pediatrician/screening.",
     `Mode: ${mode}`,
     `Parent input: ${input}`,
     `Milestone context: ${context || "none provided"}`
@@ -478,7 +509,7 @@ async function callGemini(prompt: string, env: Env): Promise<FivePartResponse> {
   };
 
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
-  return ensureFivePart(extractJson(text) as Partial<FivePartResponse>);
+  return applySupportProgramFraming(extractJson(text) as Partial<FivePartResponse>);
 }
 
 async function callGroq(prompt: string, env: Env): Promise<FivePartResponse> {
@@ -508,7 +539,7 @@ async function callGroq(prompt: string, env: Env): Promise<FivePartResponse> {
     choices?: Array<{ message?: { content?: string } }>;
   };
   const text = data.choices?.[0]?.message?.content ?? "{}";
-  return ensureFivePart(extractJson(text) as Partial<FivePartResponse>);
+  return applySupportProgramFraming(extractJson(text) as Partial<FivePartResponse>);
 }
 
 function getBearerToken(request: Request): string | null {

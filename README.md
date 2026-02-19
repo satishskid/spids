@@ -10,6 +10,16 @@ The product combines:
 - Firestore-backed parent/child profile and timeline
 - Milestone wall + blog library + chat workflow
 
+## Program Philosophy
+
+- Encourage parents to appreciate the wonder of child growth through science-backed milestone awareness.
+- Nudge regular pediatric checkups and active parental involvement.
+- Use SKIDS Chat as an empathetic pediatric companion for guidance, not diagnosis.
+- Passively record parent interactions into a longitudinal child health record.
+- Support two-way continuity:
+  - Parent observations and check-ins export to pediatric encounter.
+  - Clinic screening reports append back into child health record.
+
 ## Current Product State
 
 Implemented and deployed foundations include:
@@ -25,8 +35,8 @@ Implemented and deployed foundations include:
 - Blog ingestion/search from SKIDS feed via Worker (`https://skids.clinic/feed`)
 - Support tools collapsed under occasional actions:
   - Home screening check-in
-  - Export parent summary
-  - Import clinic report
+  - Export child health record
+  - Append clinic screening report
 
 ## Clinical Data Positioning
 
@@ -77,7 +87,7 @@ Important clinical note:
 4. Parent clicks milestone -> detail sheet opens
 5. Parent taps `Ask SKIDS` -> milestone becomes contextual chat prompt
 6. Observations/check-ins/screenings are logged into timeline
-7. Parent can export a share summary or import clinic report when needed
+7. Parent can export child health record or append clinic screening report when needed
 
 ## Repo Layout
 
@@ -159,8 +169,8 @@ Frontend data actions include:
 - milestone wall fetch
 - timeline fetch
 - save home screening
-- export parent summary
-- import clinic report
+- export child health record
+- append clinic screening report
 
 ## Safety Guardrails
 
