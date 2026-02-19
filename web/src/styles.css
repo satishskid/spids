@@ -1419,6 +1419,205 @@ button {
   background: #fcf8f2;
 }
 
+.body-wonder-atlas {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(110% 85% at 90% 8%, #eef6ff 0%, transparent 52%),
+    radial-gradient(100% 65% at 6% 94%, #fff2e8 0%, transparent 54%),
+    var(--card);
+  box-shadow: var(--shadow);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.focus-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.focus-top-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.focus-top-actions .ghost.mini {
+  width: auto;
+}
+
+.focus-hidden {
+  border: 1px dashed #d5deea;
+  border-radius: 12px;
+  padding: 9px 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.focus-hidden .ghost.mini {
+  justify-self: start;
+}
+
+.focus-pill-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.focus-pill {
+  display: inline-flex;
+  border-radius: 999px;
+  border: 1px solid #d8e2ee;
+  padding: 4px 10px;
+  font-size: 0.73rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.focus-pill.organ {
+  border-color: #c9daee;
+  background: #edf5ff;
+  color: #335776;
+}
+
+.focus-pill.development {
+  border-color: #ecd9cc;
+  background: #fff4ec;
+  color: #82533a;
+}
+
+.focus-age {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #607183;
+}
+
+.focus-subtitle {
+  margin: -3px 0 0;
+  color: #48617a;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.focus-why {
+  margin: 0;
+  color: #3a4f66;
+  line-height: 1.45;
+}
+
+.focus-reason {
+  margin: -2px 0 0;
+  font-size: 0.82rem;
+  color: #56708a;
+  line-height: 1.4;
+}
+
+.focus-note {
+  margin: -3px 0 0;
+  font-size: 0.75rem;
+  color: #6a7b8c;
+  line-height: 1.35;
+}
+
+.focus-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+}
+
+.focus-actions .primary,
+.focus-actions .ghost {
+  width: auto;
+  padding-inline: 12px;
+}
+
+.focus-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.focus-detail-card {
+  border: 1px solid #dce6f1;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 9px 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.focus-detail-card h3 {
+  margin: 0;
+  font-family: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 0.81rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #3f5a77;
+}
+
+.focus-detail-card p {
+  margin: 0;
+  color: #41556e;
+  line-height: 1.4;
+  font-size: 0.86rem;
+}
+
+.focus-detail-card ul {
+  margin: 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 4px;
+  color: #41556e;
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.focus-source {
+  margin-top: 3px;
+  font-size: 0.76rem;
+  color: #5f7388;
+}
+
+.focus-source a {
+  color: #3b628a;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.focus-up-next {
+  display: grid;
+  gap: 6px;
+}
+
+.focus-up-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.focus-up-chip {
+  width: auto;
+  border: 1px solid #d2dde9;
+  border-radius: 999px;
+  background: #f7fbff;
+  color: #3f5872;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 5px 10px;
+}
+
+.focus-up-chip:hover {
+  border-color: #b4c7dc;
+  background: #edf6ff;
+}
+
 .chat {
   min-height: calc(100vh - 40px);
   display: grid;
@@ -1825,6 +2024,32 @@ button {
   }
 
   .blog-search-row {
+    grid-template-columns: 1fr;
+  }
+
+  .focus-top {
+    display: grid;
+    gap: 6px;
+  }
+
+  .focus-top-actions {
+    justify-content: flex-start;
+  }
+
+  .focus-pill-row {
+    align-items: flex-start;
+  }
+
+  .focus-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .focus-actions .primary,
+  .focus-actions .ghost {
+    width: 100%;
+  }
+
+  .focus-detail-grid {
     grid-template-columns: 1fr;
   }
 

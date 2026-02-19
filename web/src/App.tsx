@@ -16,6 +16,11 @@ import {
   saveHomeScreening,
   TimelineEvent
 } from "./api/functions";
+import {
+  dailyFocusPrompt,
+  pickDailyFocus,
+  relatedFocusTopics
+} from "./data/bodyWonderAtlas";
 
 type ChatRole = "assistant" | "user";
 type ChatMode = "ask" | "checkin";
@@ -143,6 +148,16 @@ function supportContextLabel(ageMonths: number, domain: string, contextLabel = "
     return contextLabel;
   }
   return `${ageMonths} months • ${domainLabel(domain)} focus`;
+}
+
+function ageRangeLabel(minMonths: number, maxMonths: number): string {
+  const format = (value: number) => {
+    if (value >= 24 && value % 12 === 0) {
+      return `${value / 12}y`;
+    }
+    return `${value}m`;
+  };
+  return `${format(minMonths)}-${format(maxMonths)}`;
 }
 
 function workerImageResolverUrl(link: string): string {
@@ -327,6 +342,9 @@ export function App() {
     "on_track" | "observe" | "screening_recommended"
   >("on_track");
   const [credentialJson, setCredentialJson] = useState("{}");
+  const [dailyFocusOffset, setDailyFocusOffset] = useState(0);
+  const [dailyFocusExpanded, setDailyFocusExpanded] = useState(false);
+  const [dailyFocusHidden, setDailyFocusHidden] = useState(false);
 
   const [isBusy, setIsBusy] = useState(false);
   const [statusLine, setStatusLine] = useState("Ready");
@@ -493,6 +511,48 @@ export function App() {
     () => activeStreamMilestones[0] ?? activeMilestone ?? null,
     [activeStreamMilestones, activeMilestone]
   );
+  const dailyFocus = useMemo(
+    () =>
+      pickDailyFocus({
+        ageMonths,
+        domain,
+        uid,
+        offset: dailyFocusOffset
+      }),
+    [ageMonths, domain, uid, dailyFocusOffset]
+  );
+  const relatedDailyFocus = useMemo(
+    () =>
+      relatedFocusTopics({
+        ageMonths,
+        domain,
+        excludeId: dailyFocus?.id,
+        limit: 3
+      }),
+    [ageMonths, domain, dailyFocus?.id]
+  );
+  const dailyFocusReason = useMemo(() => {
+    if (!dailyFocus) {
+      return "";
+    }
+    const reasons: string[] = [];
+    const inAgeBand = ageMonths >= dailyFocus.minAgeMonths && ageMonths <= dailyFocus.maxAgeMonths;
+
+    if (inAgeBand) {
+      reasons.push(`it fits your child’s ${ageMonths}-month growth window`);
+    } else if (ageMonths < dailyFocus.minAgeMonths) {
+      reasons.push("it prepares you for an upcoming growth phase");
+    } else {
+      reasons.push("it reinforces a foundational pattern worth revisiting");
+    }
+
+    if (dailyFocus.primaryDomain === domain) {
+      reasons.push(`it aligns with your current ${domainLabel(domain).toLowerCase()} focus`);
+    }
+
+    reasons.push("it helps build useful notes for your next pediatric checkup");
+    return `Why this today: ${reasons.join("; ")}.`;
+  }, [dailyFocus, ageMonths, domain]);
 
   const scaleBounds = useMemo(() => {
     const rawMin =
@@ -553,6 +613,12 @@ export function App() {
       };
     });
   }, [displayMilestones, scaleBounds, wallZoomConfig.lanePattern, wallZoomConfig.bucketDensity]);
+
+  useEffect(() => {
+    setDailyFocusOffset(0);
+    setDailyFocusExpanded(false);
+    setDailyFocusHidden(false);
+  }, [ageMonths, domain, uid]);
 
   async function withBusy(task: () => Promise<void>) {
     setIsBusy(true);
@@ -718,6 +784,33 @@ export function App() {
       });
       setStatusLine(`Saved: ${milestone.milestoneTitle}`);
       setMilestoneSheetId("");
+      await refreshTimeline();
+    });
+  }
+
+  function onAskDailyFocus() {
+    if (!dailyFocus) {
+      return;
+    }
+    setChatMode("ask");
+    setChatContext(`Daily Focus • ${dailyFocus.title} (${ageRangeLabel(dailyFocus.minAgeMonths, dailyFocus.maxAgeMonths)})`);
+    void submitChatText(dailyFocusPrompt(dailyFocus, ageMonths), "ask");
+    chatPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function onLogDailyFocus() {
+    if (!dailyFocus) {
+      return;
+    }
+    const targetDomain = dailyFocus.primaryDomain === "general" ? domain : dailyFocus.primaryDomain;
+    await withBusy(async () => {
+      await saveHomeScreening({
+        childId,
+        domain: targetDomain,
+        notes: `Daily focus observed: ${dailyFocus.title}. ${dailyFocus.whatToLookFor[0] ?? ""}`.trim(),
+        resultCategory: "on_track"
+      });
+      setStatusLine(`Logged daily focus: ${dailyFocus.title}`);
       await refreshTimeline();
     });
   }
@@ -1053,6 +1146,143 @@ export function App() {
               </button>
             ))}
           </div>
+        </section>
+
+        <section className="body-wonder-atlas">
+          <div className="focus-top">
+            <p className="eyebrow">Body Wonder Atlas</p>
+            <div className="focus-top-actions">
+              <button
+                className="ghost mini"
+                type="button"
+                onClick={() => {
+                  setDailyFocusOffset((current) => current + 1);
+                  setDailyFocusExpanded(false);
+                  setDailyFocusHidden(false);
+                }}
+              >
+                Show another
+              </button>
+              {!dailyFocusHidden ? (
+                <button
+                  className="ghost mini"
+                  type="button"
+                  onClick={() => setDailyFocusHidden(true)}
+                >
+                  Pause today
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          {dailyFocusHidden ? (
+            <div className="focus-hidden">
+              <p className="muted">Daily focus paused for today. You can restore it anytime.</p>
+              <button className="ghost mini" type="button" onClick={() => setDailyFocusHidden(false)}>
+                Restore daily focus
+              </button>
+            </div>
+          ) : dailyFocus ? (
+            <>
+              <div className="focus-pill-row">
+                <span className={`focus-pill ${dailyFocus.track}`}>
+                  Today&apos;s focus • {dailyFocus.track === "organ" ? "Body system" : "Development"}
+                </span>
+                <span className="focus-age">Best window: {ageRangeLabel(dailyFocus.minAgeMonths, dailyFocus.maxAgeMonths)}</span>
+              </div>
+
+              <h2>{dailyFocus.title}</h2>
+              <p className="focus-subtitle">{dailyFocus.subtitle}</p>
+              <p className="focus-why">{dailyFocus.whyItMatters}</p>
+              <p className="focus-reason">{dailyFocusReason}</p>
+              <p className="focus-note">
+                Educational parent support only. Not a diagnosis tool. For urgent concerns, contact your pediatrician.
+              </p>
+
+              <div className="focus-actions">
+                <button className="primary" type="button" onClick={() => setDailyFocusExpanded((v) => !v)}>
+                  {dailyFocusExpanded ? "Hide quick guide" : "Learn in 2 min"}
+                </button>
+                <button className="ghost" type="button" onClick={onAskDailyFocus} disabled={isBusy || !!authError}>
+                  Ask SKIDS
+                </button>
+                <button className="ghost" type="button" onClick={() => void onLogDailyFocus()} disabled={isBusy || !!authError}>
+                  Log observed today
+                </button>
+              </div>
+
+              {dailyFocusExpanded ? (
+                <div className="focus-detail-grid">
+                  <article className="focus-detail-card">
+                    <h3>What to look for</h3>
+                    <ul>
+                      {dailyFocus.whatToLookFor.map((item) => (
+                        <li key={`look-${dailyFocus.id}-${item}`}>{item}</li>
+                      ))}
+                    </ul>
+                  </article>
+                  <article className="focus-detail-card">
+                    <h3>Try at home</h3>
+                    <ul>
+                      {dailyFocus.tryAtHome.map((item) => (
+                        <li key={`home-${dailyFocus.id}-${item}`}>{item}</li>
+                      ))}
+                    </ul>
+                  </article>
+                  <article className="focus-detail-card">
+                    <h3>When to involve pediatrician</h3>
+                    <p>{dailyFocus.whenToCheckWithPediatrician}</p>
+                  </article>
+                  <article className="focus-detail-card">
+                    <h3>Related topics</h3>
+                    <div className="keyword-row">
+                      {dailyFocus.relatedKeywords.slice(0, 5).map((keyword) => (
+                        <button
+                          key={`daily-keyword-${keyword}`}
+                          type="button"
+                          className="keyword-pill"
+                          onClick={() => onKeywordSearch(keyword)}
+                        >
+                          {keyword}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="focus-source">
+                      Source: {dailyFocus.sourceAuthority}{" "}
+                      <a href={dailyFocus.sourceUrl} target="_blank" rel="noreferrer">
+                        Reference
+                      </a>
+                    </p>
+                  </article>
+                </div>
+              ) : null}
+
+              {relatedDailyFocus.length > 0 ? (
+                <div className="focus-up-next">
+                  <p className="muted">Up next in this age window</p>
+                  <div className="focus-up-list">
+                    {relatedDailyFocus.map((topic) => (
+                      <button
+                        key={`up-next-${topic.id}`}
+                        type="button"
+                        className="focus-up-chip"
+                        onClick={() => {
+                          setChatMode("ask");
+                          setChatContext(`Body Wonder Atlas • ${topic.title}`);
+                          void submitChatText(dailyFocusPrompt(topic, ageMonths), "ask");
+                          chatPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }}
+                      >
+                        {topic.title}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <p className="muted">Daily focus is being prepared.</p>
+          )}
         </section>
 
         <section className="chat" ref={chatPanelRef}>
