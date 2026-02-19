@@ -1203,9 +1203,13 @@ export function App() {
               </div>
             </div>
 
-            <p className="muted wall-subtext">Focused on {ageMonths} months • {domainLabel(domain)} domain</p>
-            <p className="muted wall-count">{displayMilestones.length} milestones loaded</p>
-            <p className="muted wall-evidence">Evidence set: CDC milestones + AAP/IAP screening cadence.</p>
+            <div className="atlas-meta-pills">
+              <span className="atlas-meta-pill">
+                Focus {ageMonths}m • {domainLabel(domain)}
+              </span>
+              <span className="atlas-meta-pill">{displayMilestones.length} milestones</span>
+              <span className="atlas-meta-pill subtle">CDC + AAP/IAP</span>
+            </div>
             <div className="scale-legend">
               <span className="legend-pill near">Now</span>
               <span className="legend-pill soon">Soon</span>
@@ -1216,7 +1220,7 @@ export function App() {
 
             <div className="atlas-checklist">
               {completedMilestones.length === 0 ? (
-                <div className="atlas-check-row muted">No parent-confirmed milestones yet. Start with one check-in.</div>
+                <div className="atlas-check-row muted">No confirmed milestone yet. Start one quick check-in.</div>
               ) : (
                 completedMilestones.map((milestone, index) => (
                   <div key={`done-${milestone.id}`} className="atlas-check-row">
@@ -1298,49 +1302,52 @@ export function App() {
               ))}
             </div>
 
-            <div className="atlas-stream-list">
-              {activeStreamMilestones.map((milestone) => (
-                <button
-                  key={`stream-${milestone.id}`}
-                  type="button"
-                  className={`atlas-stream-card domain-${domainClassName(milestone.domain || domain)}`}
-                  onClick={() => {
-                    setActiveMilestoneId(milestone.id);
-                    setMilestoneSheetId(milestone.id);
-                  }}
-                >
+            <details className="atlas-secondary">
+              <summary>More milestone cards and next-up timeline</summary>
+              <div className="atlas-stream-list">
+                {activeStreamMilestones.map((milestone) => (
+                  <button
+                    key={`stream-${milestone.id}`}
+                    type="button"
+                    className={`atlas-stream-card domain-${domainClassName(milestone.domain || domain)}`}
+                    onClick={() => {
+                      setActiveMilestoneId(milestone.id);
+                      setMilestoneSheetId(milestone.id);
+                    }}
+                  >
                     <span className="stream-domain">{domainLabel(milestone.domain || domain)}</span>
                     <h5>{milestone.milestoneTitle}</h5>
                     <p>{truncate(milestone.observableSigns || milestone.homeActions || "Tap to open details.", 84)}</p>
                   </button>
-              ))}
-            </div>
+                ))}
+              </div>
 
-            {upcomingMilestones.length > 0 ? (
-              <>
-                <div className="atlas-divider">
-                  <span>NEXT UP</span>
-                </div>
-                <div className="upcoming-list">
-                  {upcomingMilestones.map((milestone) => (
-                    <button
-                      key={`upcoming-${milestone.id}`}
-                      type="button"
-                      className="upcoming-card"
-                      onClick={() => {
-                        setActiveMilestoneId(milestone.id);
-                        setMilestoneSheetId(milestone.id);
-                      }}
-                    >
-                      <strong>{milestone.milestoneTitle}</strong>
-                      <span>
-                        {milestone.ageMinMonths}-{milestone.ageMaxMonths} months
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            ) : null}
+              {upcomingMilestones.length > 0 ? (
+                <>
+                  <div className="atlas-divider">
+                    <span>NEXT UP</span>
+                  </div>
+                  <div className="upcoming-list">
+                    {upcomingMilestones.map((milestone) => (
+                      <button
+                        key={`upcoming-${milestone.id}`}
+                        type="button"
+                        className="upcoming-card"
+                        onClick={() => {
+                          setActiveMilestoneId(milestone.id);
+                          setMilestoneSheetId(milestone.id);
+                        }}
+                      >
+                        <strong>{milestone.milestoneTitle}</strong>
+                        <span>
+                          {milestone.ageMinMonths}-{milestone.ageMaxMonths} months
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+            </details>
 
             {quickPromptMilestone ? (
               <button
@@ -1349,7 +1356,7 @@ export function App() {
                 onClick={() => onAskMilestone(quickPromptMilestone)}
                 disabled={isBusy || !!authError}
               >
-                Ask SKIDS about this milestone
+                Ask about current milestone
               </button>
             ) : null}
           </section>

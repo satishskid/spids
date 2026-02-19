@@ -74,7 +74,7 @@ h3 {
 }
 
 .shell {
-  --side-width: 370px;
+  --side-width: 342px;
   width: min(1340px, calc(100% - 26px));
   margin: 12px auto;
   display: grid;
@@ -85,7 +85,7 @@ h3 {
 }
 
 .shell.sidebar-collapsed {
-  --side-width: 104px;
+  --side-width: 92px;
 }
 
 .side,
@@ -278,6 +278,27 @@ button {
   color: #6f7f91;
 }
 
+.atlas-meta-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.atlas-meta-pill {
+  border: 1px solid #d6e3ec;
+  border-radius: 999px;
+  background: #f7fbff;
+  color: #47617a;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 8px;
+}
+
+.atlas-meta-pill.subtle {
+  background: #f7f7f7;
+  color: #5d6b7d;
+}
+
 .atlas-head {
   display: flex;
   align-items: flex-start;
@@ -341,7 +362,7 @@ button {
   align-items: center;
   gap: 9px;
   padding: 7px 10px;
-  font-size: 0.94rem;
+  font-size: 0.88rem;
   font-weight: 700;
   color: #2f4158;
 }
@@ -515,8 +536,8 @@ button {
 .vertical-scale-canvas {
   --axis-x: 24%;
   position: relative;
-  height: 430px;
-  min-height: 430px;
+  height: 392px;
+  min-height: 392px;
   border: 1px solid #e2dbcf;
   border-radius: 14px;
   overflow: hidden;
@@ -1032,6 +1053,27 @@ button {
 .atlas-stream-list {
   display: grid;
   gap: 8px;
+}
+
+.atlas-secondary {
+  border: 1px dashed #cfdce7;
+  border-radius: 12px;
+  background: #fafcff;
+  padding: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.atlas-secondary > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #3f5f7b;
+}
+
+.atlas-secondary > summary::-webkit-details-marker {
+  display: none;
 }
 
 .stream-card {
