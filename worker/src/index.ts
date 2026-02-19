@@ -67,10 +67,13 @@ const stopWords = new Set([
   "children"
 ]);
 const BLOG_FEED_URL = "https://skids.clinic/feed";
+const BLOG_SITE_ORIGIN = "https://skids.clinic";
 const BLOG_MAX_PAGES = 24;
 const BLOG_CACHE_TTL_MS = 15 * 60 * 1000;
+const BLOG_IMAGE_CACHE_TTL_MS = 20 * 60 * 1000;
 
 let blogCache: { fetchedAt: number; items: BlogPost[] } | null = null;
+let blogImageCache: Map<string, { fetchedAt: number; imageUrl: string }> = new Map();
 
 function response(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
@@ -133,6 +136,91 @@ function extractImage(value: string): string {
   const enclosureTag = value.match(/<enclosure[^>]+url="([^"]+)"/i);
   if (enclosureTag?.[1]) {
     return enclosureTag[1];
+  }
+
+  return "";
+}
+
+function normalizeHost(value: string): string {
+  return value.trim().toLowerCase().replace(/^www\./, "");
+}
+
+function absoluteUrl(value: string, base = BLOG_SITE_ORIGIN): string {
+  const normalized = decodeEntities(value).trim();
+  if (!normalized) {
+    return "";
+  }
+
+  try {
+    return new URL(normalized, base).toString();
+  } catch {
+    return "";
+  }
+}
+
+function normalizeBlogLink(value: string): string {
+  const absolute = absoluteUrl(value, BLOG_SITE_ORIGIN);
+  if (!absolute) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(absolute);
+    if (normalizeHost(parsed.hostname) !== "skids.clinic") {
+      return "";
+    }
+    if (!parsed.pathname.startsWith("/blog/")) {
+      return "";
+    }
+    parsed.hash = "";
+    parsed.search = "";
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
+function normalizeImageUrl(value: string): string {
+  const absolute = absoluteUrl(value, BLOG_SITE_ORIGIN);
+  if (!absolute) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(absolute);
+    if (parsed.protocol !== "https:") {
+      parsed.protocol = "https:";
+    }
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
+function extractBlogImageFromPage(document: string): string {
+  const ogImage = document.match(
+    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/i
+  );
+  if (ogImage?.[1]) {
+    const normalized = normalizeImageUrl(ogImage[1]);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  const twitterImage = document.match(
+    /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*>/i
+  );
+  if (twitterImage?.[1]) {
+    const normalized = normalizeImageUrl(twitterImage[1]);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  const imageTag = document.match(/<img[^>]+src=["']([^"']+)["'][^>]*>/i);
+  if (imageTag?.[1]) {
+    return normalizeImageUrl(imageTag[1]);
   }
 
   return "";
@@ -216,7 +304,7 @@ function searchScore(post: BlogPost, queryTokens: string[]): number {
 
 function parseItem(item: string): BlogPost {
   const title = decodeEntities(extractTag(item, "title")) || "SKIDS Article";
-  const link = extractTag(item, "link");
+  const link = normalizeBlogLink(extractTag(item, "link"));
   const publishedAt = extractTag(item, "pubDate");
   const description = decodeEntities(extractTag(item, "description"));
   const content = decodeEntities(extractTag(item, "content:encoded"));
@@ -229,7 +317,7 @@ function parseItem(item: string): BlogPost {
     decodeEntities(stripHtml(category))
   );
 
-  const imageUrl = extractImage(item + content + description);
+  const imageUrl = normalizeImageUrl(extractImage(item + content + description));
   const keywords = buildKeywords(categories, title, excerpt, stripHtml(content || description));
 
   return {
@@ -256,6 +344,11 @@ function parseHtmlFeed(document: string): BlogPost[] {
         return null;
       }
 
+      const link = normalizeBlogLink(linkMatch[1]);
+      if (!link) {
+        return null;
+      }
+
       const title = decodeEntities(stripHtml(titleMatch[1]));
       const category = categoryMatch?.[1] ? decodeEntities(stripHtml(categoryMatch[1])) : "";
       const dateText = dateMatch?.[1] ? decodeEntities(stripHtml(dateMatch[1])) : "";
@@ -266,10 +359,10 @@ function parseHtmlFeed(document: string): BlogPost[] {
 
       return {
         title: title || "SKIDS Article",
-        link: `https://skids.clinic${linkMatch[1]}`,
+        link,
         publishedAt: dateText,
         excerpt,
-        imageUrl: imageMatch?.[1] ? decodeEntities(imageMatch[1]) : "",
+        imageUrl: imageMatch?.[1] ? normalizeImageUrl(imageMatch[1]) : "",
         keywords: buildKeywords(category ? [category] : [], title, excerpt, content)
       } as BlogPost;
     })
@@ -383,6 +476,45 @@ async function fetchClinicBlogs(search = "", limit = 120): Promise<{ items: Blog
     items: filtered.slice(0, boundedLimit),
     total: library.length
   };
+}
+
+async function resolveBlogImage(link: string): Promise<string> {
+  const normalizedLink = normalizeBlogLink(link);
+  if (!normalizedLink) {
+    return "";
+  }
+
+  const now = Date.now();
+  const cached = blogImageCache.get(normalizedLink);
+  if (cached && now - cached.fetchedAt < BLOG_IMAGE_CACHE_TTL_MS) {
+    return cached.imageUrl;
+  }
+
+  let imageUrl = "";
+
+  try {
+    const page = await fetch(normalizedLink, {
+      cf: { cacheEverything: true, cacheTtl: 900 }
+    });
+    if (page.ok) {
+      const html = await page.text();
+      imageUrl = extractBlogImageFromPage(html);
+    }
+  } catch {
+    imageUrl = "";
+  }
+
+  if (!imageUrl) {
+    const library = await getBlogLibrary();
+    imageUrl = library.find((entry) => entry.link === normalizedLink)?.imageUrl ?? "";
+  }
+
+  if (!imageUrl) {
+    return "";
+  }
+
+  blogImageCache.set(normalizedLink, { fetchedAt: now, imageUrl });
+  return imageUrl;
 }
 
 function enforceSafety(input: string): void {
@@ -615,7 +747,7 @@ export default {
       return response({
         service: "pairents",
         status: "ok",
-        endpoints: ["/health", "/v1/ask", "/v1/checkin", "/v1/blogs"]
+        endpoints: ["/health", "/v1/ask", "/v1/checkin", "/v1/blogs", "/v1/blog-image"]
       });
     }
 
@@ -652,6 +784,27 @@ export default {
           200
         );
       }
+    }
+
+    if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/v1/blog-image") {
+      const link = url.searchParams.get("link") ?? "";
+      if (!link) {
+        return response({ error: "Missing link query param" }, 400);
+      }
+
+      const imageUrl = await resolveBlogImage(link);
+      if (!imageUrl) {
+        return response({ error: "Image not found" }, 404);
+      }
+
+      return new Response(null, {
+        status: 302,
+        headers: {
+          "access-control-allow-origin": "*",
+          "cache-control": "public, max-age=1200",
+          location: imageUrl
+        }
+      });
     }
 
     return response({ error: "Not found" }, 404);

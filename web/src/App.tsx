@@ -145,6 +145,99 @@ function supportContextLabel(ageMonths: number, domain: string, contextLabel = "
   return `${ageMonths} months • ${domainLabel(domain)} focus`;
 }
 
+function workerImageResolverUrl(link: string): string {
+  const base = String(import.meta.env.VITE_WORKER_BASE_URL ?? "").trim().replace(/\/$/, "");
+  if (!base || !link) {
+    return "";
+  }
+  return `${base}/v1/blog-image?link=${encodeURIComponent(link)}`;
+}
+
+function buildImageCandidates(imageUrl: string, link: string): string[] {
+  const candidates: string[] = [];
+  const add = (value: string) => {
+    const normalized = value.trim();
+    if (!normalized) {
+      return;
+    }
+    if (!candidates.includes(normalized)) {
+      candidates.push(normalized);
+    }
+  };
+
+  add(workerImageResolverUrl(link));
+  add(imageUrl);
+
+  try {
+    if (imageUrl) {
+      const parsed = new URL(imageUrl);
+      if (parsed.search.length > 0) {
+        parsed.search = "";
+        parsed.hash = "";
+        add(parsed.toString());
+      }
+    }
+  } catch {
+    // keep existing candidates
+  }
+
+  return candidates;
+}
+
+function skidsArticleUrl(link: string): string {
+  const fallback = "https://skids.clinic/feed";
+  if (!link) {
+    return fallback;
+  }
+
+  try {
+    const parsed = new URL(link, "https://skids.clinic");
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    if (host !== "skids.clinic") {
+      return fallback;
+    }
+    if (!parsed.pathname.startsWith("/blog/")) {
+      return fallback;
+    }
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return fallback;
+  }
+}
+
+function BlogImage(props: { imageUrl: string; link: string; title: string }) {
+  const { imageUrl, link, title } = props;
+  const candidates = useMemo(() => buildImageCandidates(imageUrl, link), [imageUrl, link]);
+  const [candidateIndex, setCandidateIndex] = useState(0);
+
+  useEffect(() => {
+    setCandidateIndex(0);
+  }, [imageUrl, link]);
+
+  const activeSrc = candidates[candidateIndex];
+  if (!activeSrc) {
+    return <div className="blog-fallback">SKIDS</div>;
+  }
+
+  return (
+    <img
+      src={activeSrc}
+      alt={title}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      onError={() =>
+        setCandidateIndex((prev) => {
+          if (prev >= candidates.length) {
+            return prev;
+          }
+          return prev + 1;
+        })
+      }
+    />
+  );
+}
+
 const WALL_ZOOM_CONFIG: Record<
   WallZoom,
   {
@@ -883,7 +976,7 @@ export function App() {
             <article className="featured-blog">
               <div className="featured-image">
                 {selectedBlog.imageUrl ? (
-                  <img src={selectedBlog.imageUrl} alt={selectedBlog.title} />
+                  <BlogImage imageUrl={selectedBlog.imageUrl} link={selectedBlog.link} title={selectedBlog.title} />
                 ) : (
                   <div className="blog-fallback">SKIDS</div>
                 )}
@@ -904,8 +997,8 @@ export function App() {
                     </button>
                   ))}
                 </div>
-                <a href={selectedBlog.link} target="_blank" rel="noreferrer">
-                  Read full article
+                <a href={skidsArticleUrl(selectedBlog.link)} rel="noreferrer">
+                  Read full article on SKIDS
                 </a>
               </div>
             </article>
@@ -939,7 +1032,11 @@ export function App() {
                 onClick={() => setSelectedBlogLink(blog.link)}
               >
                 <div className="blog-image-wrap">
-                  {blog.imageUrl ? <img src={blog.imageUrl} alt={blog.title} loading="lazy" /> : <div className="blog-fallback">SKIDS</div>}
+                  {blog.imageUrl ? (
+                    <BlogImage imageUrl={blog.imageUrl} link={blog.link} title={blog.title} />
+                  ) : (
+                    <div className="blog-fallback">SKIDS</div>
+                  )}
                 </div>
                 <div className="blog-copy">
                   <h3>{blog.title}</h3>
