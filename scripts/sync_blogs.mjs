@@ -87,7 +87,7 @@ async function requestJson(url) {
 }
 
 function imageResolverUrl(workerBaseUrl, sourceLink) {
-  return `${workerBaseUrl}/v1/blog-image?link=${encodeURIComponent(sourceLink)}`;
+  return `${workerBaseUrl}/v1/blog-image?link=${encodeURIComponent(sourceLink)}&v=2`;
 }
 
 function normalizedDate(value) {

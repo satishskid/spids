@@ -150,7 +150,7 @@ function workerImageResolverUrl(link: string): string {
   if (!base || !link) {
     return "";
   }
-  return `${base}/v1/blog-image?link=${encodeURIComponent(link)}`;
+  return `${base}/v1/blog-image?link=${encodeURIComponent(link)}&v=2`;
 }
 
 function buildImageCandidates(imageUrl: string, link: string): string[] {
