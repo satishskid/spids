@@ -22,6 +22,18 @@ interface BlogPost {
   keywords: string[];
 }
 
+interface BlogArticle {
+  id: string;
+  link: string;
+  title: string;
+  publishedAt: string;
+  excerpt: string;
+  imageUrl: string;
+  keywords: string[];
+  paragraphs: string[];
+  bodyHtml: string;
+}
+
 const jsonHeaders = {
   "content-type": "application/json",
   "access-control-allow-origin": "*",
@@ -74,6 +86,7 @@ const BLOG_IMAGE_CACHE_TTL_MS = 20 * 60 * 1000;
 
 let blogCache: { fetchedAt: number; items: BlogPost[] } | null = null;
 let blogImageCache: Map<string, { fetchedAt: number; imageUrl: string }> = new Map();
+let blogArticleCache: Map<string, { fetchedAt: number; article: BlogArticle }> = new Map();
 
 function response(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders });
@@ -197,6 +210,16 @@ function normalizeImageUrl(value: string): string {
   }
 }
 
+function isLikelyLogoImage(value: string): boolean {
+  const normalized = value.toLowerCase();
+  return (
+    normalized.includes("/images/logo") ||
+    normalized.includes("logo.png") ||
+    normalized.includes("logo.svg") ||
+    normalized.includes("url=%2fimages%2flogo")
+  );
+}
+
 function extractBlogImageFromPage(document: string): string {
   const ogImage = document.match(
     /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/i
@@ -224,6 +247,234 @@ function extractBlogImageFromPage(document: string): string {
   }
 
   return "";
+}
+
+function blogIdFromLink(link: string): string {
+  try {
+    const parsed = new URL(link);
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    if (parts.length >= 2 && parts[0] === "blog") {
+      return parts[1];
+    }
+    return "";
+  } catch {
+    return "";
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function cleanText(value: string): string {
+  return decodeEntities(stripHtml(value)).replace(/\s+/g, " ").trim();
+}
+
+function dedupeParagraphs(values: string[]): string[] {
+  const seen = new Set<string>();
+  const uniqueValues: string[] = [];
+  const navCues = [
+    "home",
+    "skids clinic",
+    "skids advanced",
+    "skids in school",
+    "subscription",
+    "about",
+    "feed",
+    "contact",
+    "login",
+    "loading blog"
+  ];
+  for (const entry of values) {
+    const normalized = cleanText(entry);
+    if (!normalized || normalized.length < 50) {
+      continue;
+    }
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    if (
+      key.includes("cookie") ||
+      key.includes("privacy policy") ||
+      key.includes("subscribe") ||
+      key.includes("all rights reserved") ||
+      key.includes("karnataka") ||
+      key.includes("bengaluru") ||
+      key.includes("aecs layout")
+    ) {
+      continue;
+    }
+
+    const navHits = navCues.reduce((count, cue) => (key.includes(cue) ? count + 1 : count), 0);
+    if (navHits >= 4) {
+      continue;
+    }
+
+    seen.add(key);
+    uniqueValues.push(normalized);
+  }
+  return uniqueValues;
+}
+
+function parseJsonSafe<T = unknown>(value: string): T | null {
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
+}
+
+function pushCandidateParagraph(target: string[], value: unknown): void {
+  if (typeof value !== "string") {
+    return;
+  }
+
+  const text = cleanText(value);
+  if (text.length < 80) {
+    return;
+  }
+  target.push(text);
+}
+
+function collectParagraphsFromObject(input: unknown, target: string[], depth = 0): void {
+  if (!input || depth > 9) {
+    return;
+  }
+
+  if (typeof input === "string") {
+    pushCandidateParagraph(target, input);
+    return;
+  }
+
+  if (Array.isArray(input)) {
+    for (const value of input) {
+      collectParagraphsFromObject(value, target, depth + 1);
+    }
+    return;
+  }
+
+  if (typeof input !== "object") {
+    return;
+  }
+
+  const record = input as Record<string, unknown>;
+  for (const [key, value] of Object.entries(record)) {
+    const lowerKey = key.toLowerCase();
+    if (
+      lowerKey.includes("articlebody") ||
+      lowerKey === "content" ||
+      lowerKey.includes("body") ||
+      lowerKey.includes("description") ||
+      lowerKey.includes("summary") ||
+      lowerKey.includes("text")
+    ) {
+      pushCandidateParagraph(target, typeof value === "string" ? value : "");
+    }
+    collectParagraphsFromObject(value, target, depth + 1);
+  }
+}
+
+function extractParagraphsFromJsonLd(document: string): string[] {
+  const matches = document.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) ?? [];
+  const paragraphs: string[] = [];
+
+  for (const entry of matches) {
+    const scriptMatch = entry.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
+    if (!scriptMatch?.[1]) {
+      continue;
+    }
+
+    const parsed = parseJsonSafe<unknown>(scriptMatch[1].trim());
+    if (!parsed) {
+      continue;
+    }
+
+    collectParagraphsFromObject(parsed, paragraphs);
+  }
+
+  return dedupeParagraphs(paragraphs);
+}
+
+function extractParagraphsFromNextData(document: string): string[] {
+  const nextDataMatch = document.match(/<script[^>]+id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i);
+  if (!nextDataMatch?.[1]) {
+    return [];
+  }
+
+  const parsed = parseJsonSafe<unknown>(nextDataMatch[1].trim());
+  if (!parsed) {
+    return [];
+  }
+
+  const paragraphs: string[] = [];
+  collectParagraphsFromObject(parsed, paragraphs);
+  return dedupeParagraphs(paragraphs);
+}
+
+function extractMetaContent(document: string, attribute: "property" | "name", key: string): string {
+  const pattern = new RegExp(
+    `<meta[^>]+${attribute}=["']${key}["'][^>]+content=["']([\\s\\S]*?)["'][^>]*>`,
+    "i"
+  );
+  const match = document.match(pattern);
+  return match?.[1] ? decodeEntities(match[1]).trim() : "";
+}
+
+function extractTitleFromDocument(document: string): string {
+  const ogTitle = extractMetaContent(document, "property", "og:title");
+  if (ogTitle) {
+    return cleanText(ogTitle);
+  }
+  const h1Match = document.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+  if (h1Match?.[1]) {
+    return cleanText(h1Match[1]);
+  }
+  const titleMatch = document.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  return titleMatch?.[1] ? cleanText(titleMatch[1]) : "";
+}
+
+function extractPublishedFromDocument(document: string): string {
+  return (
+    extractMetaContent(document, "property", "article:published_time") ||
+    extractMetaContent(document, "name", "article:published_time") ||
+    ""
+  );
+}
+
+function extractParagraphs(document: string): string[] {
+  const fromJsonLd = extractParagraphsFromJsonLd(document);
+  if (fromJsonLd.length > 0) {
+    return fromJsonLd.slice(0, 18);
+  }
+
+  const fromNextData = extractParagraphsFromNextData(document);
+  if (fromNextData.length > 0) {
+    return fromNextData.slice(0, 18);
+  }
+
+  const articleMatch = document.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
+  const scoped = articleMatch?.[1] ?? document;
+  const paragraphMatches = scoped.match(/<p[^>]*>([\s\S]*?)<\/p>/gi) ?? [];
+  const extracted = paragraphMatches
+    .map((paragraph) => paragraph.replace(/^<p[^>]*>/i, "").replace(/<\/p>$/i, ""))
+    .map((paragraph) => cleanText(paragraph));
+
+  const filtered = dedupeParagraphs(extracted);
+  if (filtered.length > 0) {
+    return filtered.slice(0, 18);
+  }
+
+  // Fallback for script-heavy pages: extract long text lines from the body.
+  const bodyMatch = document.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  const bodyText = cleanText(bodyMatch?.[1] ?? document);
+  const chunks = bodyText.split(/(?<=[.?!])\s+/).filter((line) => line.length >= 80);
+  return dedupeParagraphs(chunks).slice(0, 12);
 }
 
 function normalizeText(value: string): string {
@@ -490,23 +741,38 @@ async function resolveBlogImage(link: string): Promise<string> {
     return cached.imageUrl;
   }
 
-  let imageUrl = "";
-
-  try {
-    const page = await fetch(normalizedLink, {
-      cf: { cacheEverything: true, cacheTtl: 900 }
-    });
-    if (page.ok) {
-      const html = await page.text();
-      imageUrl = extractBlogImageFromPage(html);
+  const pickLibraryImage = async (): Promise<string> => {
+    const library = await getBlogLibrary();
+    const candidate = library.find((entry) => entry.link === normalizedLink)?.imageUrl ?? "";
+    if (!candidate || isLikelyLogoImage(candidate)) {
+      return "";
     }
-  } catch {
-    imageUrl = "";
+    return candidate;
+  };
+
+  let imageUrl = await pickLibraryImage();
+
+  if (!imageUrl) {
+    // Force refresh feed cache once to rotate signed URLs and recover missing thumbnails.
+    blogCache = null;
+    imageUrl = await pickLibraryImage();
   }
 
   if (!imageUrl) {
-    const library = await getBlogLibrary();
-    imageUrl = library.find((entry) => entry.link === normalizedLink)?.imageUrl ?? "";
+    try {
+      const page = await fetch(normalizedLink, {
+        cf: { cacheEverything: true, cacheTtl: 900 }
+      });
+      if (page.ok) {
+        const html = await page.text();
+        const candidate = extractBlogImageFromPage(html);
+        if (candidate && !isLikelyLogoImage(candidate)) {
+          imageUrl = candidate;
+        }
+      }
+    } catch {
+      imageUrl = "";
+    }
   }
 
   if (!imageUrl) {
@@ -515,6 +781,86 @@ async function resolveBlogImage(link: string): Promise<string> {
 
   blogImageCache.set(normalizedLink, { fetchedAt: now, imageUrl });
   return imageUrl;
+}
+
+async function resolveBlogArticle(link: string): Promise<BlogArticle | null> {
+  const normalizedLink = normalizeBlogLink(link);
+  if (!normalizedLink) {
+    return null;
+  }
+
+  const now = Date.now();
+  const cached = blogArticleCache.get(normalizedLink);
+  if (cached && now - cached.fetchedAt < BLOG_IMAGE_CACHE_TTL_MS) {
+    return cached.article;
+  }
+
+  const library = await getBlogLibrary();
+  const summary = library.find((entry) => entry.link === normalizedLink);
+  const id = blogIdFromLink(normalizedLink);
+  if (!id) {
+    return null;
+  }
+
+  let title = summary?.title ?? "SKIDS Article";
+  let excerpt = summary?.excerpt ?? "Article from the SKIDS knowledge library.";
+  let publishedAt = summary?.publishedAt ?? "";
+  let imageUrl = summary?.imageUrl ?? "";
+  let keywords = summary?.keywords ?? [];
+  let paragraphs: string[] = [];
+
+  try {
+    const page = await fetch(normalizedLink, {
+      cf: { cacheEverything: true, cacheTtl: 900 }
+    });
+    if (page.ok) {
+      const html = await page.text();
+      const pageTitle = extractTitleFromDocument(html);
+      if (pageTitle && !/^skids clinic$/i.test(pageTitle.trim())) {
+        title = pageTitle;
+      }
+      excerpt =
+        extractMetaContent(html, "property", "og:description") ||
+        extractMetaContent(html, "name", "description") ||
+        excerpt;
+      publishedAt = extractPublishedFromDocument(html) || publishedAt;
+      const pageImage = extractBlogImageFromPage(html);
+      if (pageImage && !isLikelyLogoImage(pageImage)) {
+        imageUrl = pageImage;
+      }
+      paragraphs = extractParagraphs(html);
+    }
+  } catch {
+    // fallback to library summary only
+  }
+
+  if (keywords.length === 0) {
+    keywords = buildKeywords([], title, excerpt, paragraphs.join(" "));
+  }
+
+  if (!imageUrl || isLikelyLogoImage(imageUrl)) {
+    imageUrl = await resolveBlogImage(normalizedLink);
+  }
+
+  const bodyHtml =
+    paragraphs.length > 0
+      ? paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("\n")
+      : `<p>${escapeHtml(excerpt)}</p>`;
+
+  const article: BlogArticle = {
+    id,
+    link: normalizedLink,
+    title,
+    publishedAt,
+    excerpt,
+    imageUrl,
+    keywords,
+    paragraphs,
+    bodyHtml
+  };
+
+  blogArticleCache.set(normalizedLink, { fetchedAt: now, article });
+  return article;
 }
 
 function enforceSafety(input: string): void {
@@ -747,7 +1093,14 @@ export default {
       return response({
         service: "pairents",
         status: "ok",
-        endpoints: ["/health", "/v1/ask", "/v1/checkin", "/v1/blogs", "/v1/blog-image"]
+        endpoints: [
+          "/health",
+          "/v1/ask",
+          "/v1/checkin",
+          "/v1/blogs",
+          "/v1/blog-image",
+          "/v1/blog-content"
+        ]
       });
     }
 
@@ -805,6 +1158,20 @@ export default {
           location: imageUrl
         }
       });
+    }
+
+    if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/v1/blog-content") {
+      const link = url.searchParams.get("link") ?? "";
+      if (!link) {
+        return response({ error: "Missing link query param" }, 400);
+      }
+
+      const article = await resolveBlogArticle(link);
+      if (!article) {
+        return response({ error: "Article not found" }, 404);
+      }
+
+      return response(article);
     }
 
     return response({ error: "Not found" }, 404);

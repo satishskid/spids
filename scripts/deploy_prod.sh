@@ -12,6 +12,11 @@ fi
 
 cd "$ROOT_DIR/web"
 npm install
+
+cd "$ROOT_DIR"
+node scripts/sync_blogs.mjs
+
+cd "$ROOT_DIR/web"
 npm run build
 
 cd "$ROOT_DIR/worker"

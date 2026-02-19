@@ -33,6 +33,7 @@ Implemented and deployed foundations include:
   - click-to-open milestone detail sheet
   - one-tap handoff from milestone to chat prompt
 - Blog ingestion/search from SKIDS feed via Worker (`https://skids.clinic/feed`)
+- Static SEO ingestion of SKIDS articles into this app domain (`/blog/:id`)
 - Support tools collapsed under occasional actions:
   - Home screening check-in
   - Export child health record
@@ -110,6 +111,9 @@ Required:
 - `VITE_FIREBASE_APP_ID`
 - `VITE_WORKER_BASE_URL`
 
+Optional:
+- `VITE_SITE_BASE_URL` (defaults to `https://healthvoice-8461b.web.app` for sitemap/canonical generation)
+
 ### Worker secrets (Wrangler)
 Required:
 - `GEMINI_API_KEY`
@@ -133,6 +137,9 @@ From `/Users/spr/spids`:
 
 4. Worker local dev
 - `cd /Users/spr/spids && npm run worker:dev`
+
+5. Sync SEO blog pages locally
+- `cd /Users/spr/spids && npm run blogs:sync`
 
 ## Validation Commands
 
@@ -163,6 +170,14 @@ Worker routes:
 - `POST /v1/ask`
 - `POST /v1/checkin`
 - `GET /v1/blogs`
+- `GET /v1/blog-image`
+- `GET /v1/blog-content`
+
+Static SEO routes generated during sync/deploy:
+- `GET /blog/`
+- `GET /blog/:id/`
+- `GET /sitemap.xml`
+- `GET /robots.txt`
 
 Frontend data actions include:
 - child profile save/load

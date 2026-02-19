@@ -2,6 +2,7 @@
   "name": "spids",
   "private": true,
   "scripts": {
+    "blogs:sync": "node scripts/sync_blogs.mjs",
     "firebase:configure": "bash scripts/configure_firebase_aliases.sh",
     "deploy:dev": "bash scripts/deploy_dev.sh",
     "deploy:prod": "bash scripts/deploy_prod.sh",

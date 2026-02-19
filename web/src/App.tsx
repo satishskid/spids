@@ -165,8 +165,8 @@ function buildImageCandidates(imageUrl: string, link: string): string[] {
     }
   };
 
-  add(workerImageResolverUrl(link));
   add(imageUrl);
+  add(workerImageResolverUrl(link));
 
   try {
     if (imageUrl) {
@@ -184,8 +184,8 @@ function buildImageCandidates(imageUrl: string, link: string): string[] {
   return candidates;
 }
 
-function skidsArticleUrl(link: string): string {
-  const fallback = "https://skids.clinic/feed";
+function internalBlogPath(link: string): string {
+  const fallback = "/blog/";
   if (!link) {
     return fallback;
   }
@@ -199,8 +199,11 @@ function skidsArticleUrl(link: string): string {
     if (!parsed.pathname.startsWith("/blog/")) {
       return fallback;
     }
-    parsed.hash = "";
-    return parsed.toString();
+    const id = parsed.pathname.split("/").filter(Boolean)[1] ?? "";
+    if (!id) {
+      return fallback;
+    }
+    return `/blog/${id}/`;
   } catch {
     return fallback;
   }
@@ -997,7 +1000,7 @@ export function App() {
                     </button>
                   ))}
                 </div>
-                <a href={skidsArticleUrl(selectedBlog.link)} rel="noreferrer">
+                <a href={internalBlogPath(selectedBlog.link)}>
                   Read full article on SKIDS
                 </a>
               </div>
@@ -1014,7 +1017,7 @@ export function App() {
               onChange={(e) => setBlogQuery(e.target.value)}
               placeholder="Search by organ, condition, age, symptoms, habits..."
             />
-            <a href="https://skids.clinic/feed" target="_blank" rel="noreferrer">
+            <a href="/blog/">
               Source feed
             </a>
           </div>
