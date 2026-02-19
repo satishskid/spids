@@ -556,39 +556,63 @@ button {
   left: 24%;
   top: 16px;
   bottom: 16px;
-  width: 4px;
+  width: 3px;
   border-radius: 999px;
-  background: linear-gradient(180deg, var(--wall-accent), var(--wall-mid), var(--wall-tail));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--wall-accent) 92%, #ffffff) 0%,
+    color-mix(in srgb, var(--wall-mid) 90%, #ffffff) 54%,
+    color-mix(in srgb, var(--wall-tail) 88%, #ffffff) 100%
+  );
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.9),
+    0 8px 18px -16px rgba(39, 56, 78, 0.7);
+}
+
+.vertical-ruler-line::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  bottom: 2px;
+  width: 1px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  pointer-events: none;
 }
 
 .vertical-tick {
   position: absolute;
-  left: calc(24% - 1px);
-  transform: translate(-50%, 50%);
-  width: 1px;
-  background: #6e7f92;
+  left: calc(24% - 7px);
+  transform: translateY(50%);
+  height: 1.4px;
+  border-radius: 999px;
+  background: #7e8fa2;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.64);
 }
 
 .vertical-tick.minor {
-  height: 6px;
-  opacity: 0.5;
+  width: 6px;
+  opacity: 0.42;
 }
 
 .vertical-tick.mid {
-  height: 10px;
-  opacity: 0.75;
+  width: 9px;
+  opacity: 0.68;
 }
 
 .vertical-tick.major {
-  height: 14px;
-  background: #50697f;
+  width: 12px;
+  opacity: 0.9;
+  background: #5d7288;
 }
 
 .vertical-tick em {
   position: absolute;
-  right: 9px;
-  top: -1px;
-  transform: translateX(-100%);
+  right: 10px;
+  top: 50%;
+  transform: translate(-100%, -50%);
   font-style: normal;
   font-size: 0.67rem;
   font-weight: 700;
@@ -598,7 +622,7 @@ button {
 
 .vertical-now-pin {
   position: absolute;
-  left: calc(24% - 1px);
+  left: 24%;
   transform: translate(-50%, 50%);
   width: 14px;
   height: 14px;
