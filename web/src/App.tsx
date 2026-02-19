@@ -21,6 +21,7 @@ import {
   pickDailyFocus,
   relatedFocusTopics
 } from "./data/bodyWonderAtlas";
+import { pickPlaybookChallenges } from "./data/parentPlaybookChallenges";
 
 type ChatRole = "assistant" | "user";
 type ChatMode = "ask" | "checkin";
@@ -135,6 +136,20 @@ function milestoneWeight(milestone: MilestoneWallItem, childAgeMonths: number): 
   return nearChildAge || broadSpan ? "major" : "minor";
 }
 
+function milestoneMidpoint(milestone: MilestoneWallItem): number {
+  return (milestone.ageMinMonths + milestone.ageMaxMonths) / 2;
+}
+
+function milestoneRelevanceScore(milestone: MilestoneWallItem, childAgeMonths: number): number {
+  const midpoint = milestoneMidpoint(milestone);
+  const distance = Math.abs(midpoint - childAgeMonths);
+  const inFocusBand = childAgeMonths >= milestone.ageMinMonths && childAgeMonths <= milestone.ageMaxMonths;
+  const base = distance * 10;
+  const priorityBias = milestone.priority === "major" ? -4 : 2;
+  const focusBias = inFocusBand ? -10 : 0;
+  return base + priorityBias + focusBias;
+}
+
 function pointsFromText(text: string, max = 3): string[] {
   return text
     .split(/[.;]\s+/)
@@ -148,6 +163,19 @@ function supportContextLabel(ageMonths: number, domain: string, contextLabel = "
     return contextLabel;
   }
   return `${ageMonths} months • ${domainLabel(domain)} focus`;
+}
+
+function localDayKey(input = new Date()): string {
+  const year = input.getFullYear();
+  const month = `${input.getMonth() + 1}`.padStart(2, "0");
+  const day = `${input.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function previousLocalDayKey(input = new Date()): string {
+  const prior = new Date(input);
+  prior.setDate(prior.getDate() - 1);
+  return localDayKey(prior);
 }
 
 function ageRangeLabel(minMonths: number, maxMonths: number): string {
@@ -345,6 +373,9 @@ export function App() {
   const [dailyFocusOffset, setDailyFocusOffset] = useState(0);
   const [dailyFocusExpanded, setDailyFocusExpanded] = useState(false);
   const [dailyFocusHidden, setDailyFocusHidden] = useState(false);
+  const [playbookDoneToday, setPlaybookDoneToday] = useState<string[]>([]);
+  const [playbookStreakDays, setPlaybookStreakDays] = useState(0);
+  const [playbookPoints, setPlaybookPoints] = useState(0);
 
   const [isBusy, setIsBusy] = useState(false);
   const [statusLine, setStatusLine] = useState("Ready");
@@ -466,16 +497,64 @@ export function App() {
     return `${nameText} ${ageMonths} months old. Current milestone focus: ${domainLabel(domain)}.`;
   }, [childName, ageMonths, domain]);
   const wallSignals = useMemo(() => timeline.slice(0, 4), [timeline]);
-  const displayMilestones = useMemo(
-    () =>
-      [...milestones]
-        .sort(
-          (left, right) =>
-            (left.ageMinMonths + left.ageMaxMonths) / 2 - (right.ageMinMonths + right.ageMaxMonths) / 2
-        )
-        .slice(0, wallZoomConfig.renderLimit),
-    [milestones, wallZoomConfig.renderLimit]
-  );
+  const displayMilestones = useMemo(() => {
+    if (milestones.length === 0) {
+      return [];
+    }
+
+    const ranked = [...milestones].sort((left, right) => {
+      const scoreDelta = milestoneRelevanceScore(left, ageMonths) - milestoneRelevanceScore(right, ageMonths);
+      if (scoreDelta !== 0) {
+        return scoreDelta;
+      }
+      return milestoneMidpoint(left) - milestoneMidpoint(right);
+    });
+
+    const nearWindowMonths = wallZoom === "focused" ? 4 : wallZoom === "detailed" ? 6 : 9;
+    const minNearTarget = Math.max(4, Math.floor(wallZoomConfig.renderLimit * 0.42));
+    const perMonthCap = wallZoom === "focused" ? 2 : wallZoom === "detailed" ? 3 : 4;
+
+    const selected: MilestoneWallItem[] = [];
+    const selectedIds = new Set<string>();
+    const monthBuckets = new Map<number, number>();
+
+    function addCandidate(milestone: MilestoneWallItem): boolean {
+      if (selected.length >= wallZoomConfig.renderLimit || selectedIds.has(milestone.id)) {
+        return false;
+      }
+
+      const bucket = Math.round(milestoneMidpoint(milestone));
+      const usedInBucket = monthBuckets.get(bucket) ?? 0;
+      const cap = milestone.priority === "major" ? perMonthCap + 1 : perMonthCap;
+      if (usedInBucket >= cap) {
+        return false;
+      }
+
+      selected.push(milestone);
+      selectedIds.add(milestone.id);
+      monthBuckets.set(bucket, usedInBucket + 1);
+      return true;
+    }
+
+    for (const milestone of ranked) {
+      const distance = Math.abs(milestoneMidpoint(milestone) - ageMonths);
+      if (distance <= nearWindowMonths) {
+        addCandidate(milestone);
+      }
+      if (selected.length >= minNearTarget) {
+        break;
+      }
+    }
+
+    for (const milestone of ranked) {
+      addCandidate(milestone);
+      if (selected.length >= wallZoomConfig.renderLimit) {
+        break;
+      }
+    }
+
+    return selected.sort((left, right) => milestoneMidpoint(left) - milestoneMidpoint(right));
+  }, [milestones, wallZoomConfig.renderLimit, wallZoom, ageMonths]);
   const activeMilestone = useMemo(
     () => displayMilestones.find((milestone) => milestone.id === activeMilestoneId) ?? null,
     [displayMilestones, activeMilestoneId]
@@ -530,6 +609,15 @@ export function App() {
         limit: 3
       }),
     [ageMonths, domain, dailyFocus?.id]
+  );
+  const playbookChallenges = useMemo(
+    () =>
+      pickPlaybookChallenges({
+        ageMonths,
+        domain,
+        limit: 3
+      }),
+    [ageMonths, domain]
   );
   const dailyFocusReason = useMemo(() => {
     if (!dailyFocus) {
@@ -619,6 +707,44 @@ export function App() {
     setDailyFocusExpanded(false);
     setDailyFocusHidden(false);
   }, [ageMonths, domain, uid]);
+
+  useEffect(() => {
+    const storageKey = `skids-playbook-progress-${uid || "guest"}`;
+    const raw = localStorage.getItem(storageKey);
+    const today = localDayKey();
+
+    if (!raw) {
+      setPlaybookDoneToday([]);
+      setPlaybookStreakDays(0);
+      setPlaybookPoints(0);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        dayKey?: string;
+        doneToday?: string[];
+        streakDays?: number;
+        points?: number;
+      };
+      const dayKey = parsed.dayKey ?? "";
+      const doneToday = Array.isArray(parsed.doneToday) ? parsed.doneToday.filter((value) => typeof value === "string") : [];
+      const streak = Number.isFinite(Number(parsed.streakDays)) ? Number(parsed.streakDays) : 0;
+      const points = Number.isFinite(Number(parsed.points)) ? Number(parsed.points) : 0;
+
+      if (dayKey === today) {
+        setPlaybookDoneToday(doneToday);
+      } else {
+        setPlaybookDoneToday([]);
+      }
+      setPlaybookStreakDays(streak);
+      setPlaybookPoints(points);
+    } catch {
+      setPlaybookDoneToday([]);
+      setPlaybookStreakDays(0);
+      setPlaybookPoints(0);
+    }
+  }, [uid]);
 
   async function withBusy(task: () => Promise<void>) {
     setIsBusy(true);
@@ -815,6 +941,83 @@ export function App() {
     });
   }
 
+  function persistPlaybookProgress(input: {
+    dayKey: string;
+    doneToday: string[];
+    streakDays: number;
+    points: number;
+  }) {
+    const storageKey = `skids-playbook-progress-${uid || "guest"}`;
+    localStorage.setItem(storageKey, JSON.stringify(input));
+  }
+
+  async function onCompletePlaybookChallenge(challengeId: string) {
+    const challenge = playbookChallenges.find((item) => item.id === challengeId);
+    if (!challenge || playbookDoneToday.includes(challenge.id)) {
+      return;
+    }
+
+    const today = localDayKey();
+    const yesterday = previousLocalDayKey();
+    const storageKey = `skids-playbook-progress-${uid || "guest"}`;
+    const previousRaw = localStorage.getItem(storageKey);
+    let previousDayKey = "";
+    let previousStreak = playbookStreakDays;
+    let previousPoints = playbookPoints;
+
+    if (previousRaw) {
+      try {
+        const previous = JSON.parse(previousRaw) as {
+          dayKey?: string;
+          streakDays?: number;
+          points?: number;
+        };
+        previousDayKey = previous.dayKey ?? "";
+        previousStreak = Number.isFinite(Number(previous.streakDays)) ? Number(previous.streakDays) : previousStreak;
+        previousPoints = Number.isFinite(Number(previous.points)) ? Number(previous.points) : previousPoints;
+      } catch {
+        previousDayKey = "";
+      }
+    }
+
+    const nextDoneToday = [...playbookDoneToday, challenge.id];
+    let nextStreak = previousStreak;
+    if (previousDayKey === today) {
+      nextStreak = previousStreak;
+    } else if (previousDayKey === yesterday) {
+      nextStreak = Math.max(1, previousStreak + 1);
+    } else {
+      nextStreak = 1;
+    }
+    const nextPoints = previousPoints + challenge.points;
+
+    setPlaybookDoneToday(nextDoneToday);
+    setPlaybookStreakDays(nextStreak);
+    setPlaybookPoints(nextPoints);
+    persistPlaybookProgress({
+      dayKey: today,
+      doneToday: nextDoneToday,
+      streakDays: nextStreak,
+      points: nextPoints
+    });
+
+    if (!childId || authError) {
+      setStatusLine(`Challenge completed: ${challenge.title}`);
+      return;
+    }
+
+    await withBusy(async () => {
+      await saveHomeScreening({
+        childId,
+        domain,
+        notes: `Playbook quest completed: ${challenge.title} (${challenge.framework}).`,
+        resultCategory: "on_track"
+      });
+      setStatusLine(`Quest completed: ${challenge.title}`);
+      await refreshTimeline();
+    });
+  }
+
   return (
     <>
       <main className={`shell ${sidebarOpen ? "sidebar-open" : "sidebar-collapsed"}`}>
@@ -955,7 +1158,7 @@ export function App() {
                 const visualPosition = Math.max(4, Math.min(96, position));
                 const lineStyle: CSSProperties = {
                   bottom: `${visualPosition}%`,
-                  left: `calc(24% + 8px + ${lane * wallZoomConfig.laneSpacing}px)`,
+                  left: `calc(var(--axis-x) + 8px + ${lane * wallZoomConfig.laneSpacing}px)`,
                   width: `calc(${wallZoomConfig.lineWidthPercent}% - ${lane * wallZoomConfig.laneSpacing}px)`,
                   animationDelay: `${delayMs}ms`
                 };
@@ -1276,6 +1479,68 @@ export function App() {
                         {topic.title}
                       </button>
                     ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {playbookChallenges.length > 0 ? (
+                <div className="playbook-panel">
+                  <div className="playbook-head">
+                    <h3>Parent Playbook Quests</h3>
+                    <div className="playbook-stats">
+                      <span>{playbookStreakDays} day streak</span>
+                      <span>{playbookPoints} points</span>
+                    </div>
+                  </div>
+                  <p className="muted">
+                    Gamified daily micro-actions inspired by SKIDS workshops on healthy habits, nutrition, digital parenting, and family communication.
+                  </p>
+                  <div className="playbook-grid">
+                    {playbookChallenges.map((challenge) => {
+                      const done = playbookDoneToday.includes(challenge.id);
+                      return (
+                        <article className={`playbook-card ${done ? "done" : ""}`} key={challenge.id}>
+                          <div className="playbook-card-top">
+                            <span className="playbook-framework">{challenge.framework}</span>
+                            <strong>+{challenge.points}</strong>
+                          </div>
+                          <h4>{challenge.title}</h4>
+                          <p>{challenge.summary}</p>
+                          <ol>
+                            {challenge.steps.slice(0, 2).map((step) => (
+                              <li key={`${challenge.id}-${step}`}>{step}</li>
+                            ))}
+                          </ol>
+                          <div className="playbook-actions">
+                            <button
+                              type="button"
+                              className="ghost mini"
+                              onClick={() => {
+                                setChatMode("ask");
+                                setChatContext(`Playbook Quest • ${challenge.title}`);
+                                void submitChatText(
+                                  `Help me run this parent playbook quest today: ${challenge.title}. Framework: ${challenge.framework}. Steps: ${challenge.steps.join(
+                                    " "
+                                  )} Please make it practical and empathetic for my ${ageMonths}-month child.`,
+                                  "ask"
+                                );
+                                chatPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                              }}
+                            >
+                              Coach me
+                            </button>
+                            <button
+                              type="button"
+                              className="primary mini"
+                              onClick={() => void onCompletePlaybookChallenge(challenge.id)}
+                              disabled={done || isBusy}
+                            >
+                              {done ? "Done today" : "Mark done"}
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })}
                   </div>
                 </div>
               ) : null}

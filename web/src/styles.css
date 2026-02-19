@@ -513,6 +513,7 @@ button {
 }
 
 .vertical-scale-canvas {
+  --axis-x: 24%;
   position: relative;
   height: 430px;
   min-height: 430px;
@@ -553,10 +554,10 @@ button {
 
 .vertical-ruler-line {
   position: absolute;
-  left: 24%;
+  left: var(--axis-x);
   top: 16px;
   bottom: 16px;
-  width: 3px;
+  width: 4px;
   border-radius: 999px;
   background: linear-gradient(
     180deg,
@@ -584,28 +585,28 @@ button {
 
 .vertical-tick {
   position: absolute;
-  left: calc(24% - 7px);
+  left: calc(var(--axis-x) - 22px);
   transform: translateY(50%);
   height: 1.4px;
   border-radius: 999px;
-  background: #7e8fa2;
+  background: #8a9db2;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.64);
 }
 
 .vertical-tick.minor {
-  width: 6px;
-  opacity: 0.42;
+  width: 8px;
+  opacity: 0.38;
 }
 
 .vertical-tick.mid {
-  width: 9px;
-  opacity: 0.68;
+  width: 12px;
+  opacity: 0.6;
 }
 
 .vertical-tick.major {
-  width: 12px;
-  opacity: 0.9;
-  background: #5d7288;
+  width: 16px;
+  opacity: 0.86;
+  background: #5f748b;
 }
 
 .vertical-tick em {
@@ -622,7 +623,7 @@ button {
 
 .vertical-now-pin {
   position: absolute;
-  left: 24%;
+  left: var(--axis-x);
   transform: translate(-50%, 50%);
   width: 14px;
   height: 14px;
@@ -646,7 +647,7 @@ button {
 
 .vertical-bead {
   position: absolute;
-  left: 24%;
+  left: var(--axis-x);
   transform: translate(-50%, 50%);
   border: 0;
   background: transparent;
@@ -665,7 +666,7 @@ button {
   --line-glow: color-mix(in srgb, var(--line-main) 40%, #ffffff);
   position: absolute;
   transform: translateY(50%);
-  height: 13px;
+  height: 14px;
   border: 0;
   background: transparent;
   padding: 0;
@@ -680,9 +681,9 @@ button {
   right: 0;
   top: 50%;
   transform: translateY(-50%);
-  height: 1.3px;
+  height: 1.5px;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--line-main), var(--line-soft));
+  background: linear-gradient(90deg, var(--line-main) 0%, var(--line-main) 18%, var(--line-soft) 100%);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.56), 0 4px 10px -13px rgba(31, 46, 68, 0.6);
 }
 
@@ -691,8 +692,8 @@ button {
   left: -5px;
   top: 50%;
   transform: translateY(-50%);
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
   border: 1.5px solid #fff;
   background: var(--line-main);
@@ -700,25 +701,25 @@ button {
 }
 
 .milestone-line.minor .milestone-line-track {
-  height: 1.3px;
+  height: 1.4px;
   opacity: 0.9;
 }
 
 .milestone-line.minor .milestone-line-node {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   left: -4px;
   border-width: 1px;
 }
 
 .milestone-line.major .milestone-line-track {
-  height: 2.8px;
+  height: 3.1px;
   opacity: 1;
 }
 
 .milestone-line.major .milestone-line-node {
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   left: -6px;
   border-width: 2px;
 }
@@ -756,14 +757,14 @@ button {
 .milestone-line:hover .milestone-line-track,
 .milestone-line:focus-visible .milestone-line-track,
 .milestone-line.active .milestone-line-track {
-  height: 2.2px;
+  height: 2.3px;
   background: linear-gradient(90deg, var(--line-main), var(--line-glow));
 }
 
 .milestone-line.major:hover .milestone-line-track,
 .milestone-line.major:focus-visible .milestone-line-track,
 .milestone-line.major.active .milestone-line-track {
-  height: 3.2px;
+  height: 3.6px;
 }
 
 .milestone-line:hover .milestone-line-node,
@@ -1618,6 +1619,125 @@ button {
   background: #edf6ff;
 }
 
+.playbook-panel {
+  border: 1px solid #d9e4f0;
+  border-radius: 14px;
+  background: linear-gradient(175deg, rgba(255, 255, 255, 0.95), rgba(245, 251, 255, 0.95));
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.playbook-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.playbook-head h3 {
+  margin: 0;
+  font-family: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 0.92rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #3f5e7d;
+}
+
+.playbook-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.playbook-stats span {
+  border: 1px solid #cfe0f1;
+  background: #eef6ff;
+  color: #355574;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 3px 8px;
+}
+
+.playbook-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.playbook-card {
+  border: 1px solid #d7e3ef;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 9px;
+  display: grid;
+  gap: 6px;
+}
+
+.playbook-card.done {
+  border-color: #c7e5d5;
+  background: #f4fcf7;
+}
+
+.playbook-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.playbook-framework {
+  border: 1px solid #d5e3f1;
+  background: #f4f9ff;
+  color: #395b7a;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 3px 7px;
+}
+
+.playbook-card-top strong {
+  color: #365979;
+  font-size: 0.76rem;
+}
+
+.playbook-card h4 {
+  margin: 0;
+  font-size: 0.93rem;
+}
+
+.playbook-card p {
+  margin: 0;
+  color: #4a6078;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.playbook-card ol {
+  margin: 0;
+  padding-left: 17px;
+  display: grid;
+  gap: 4px;
+  color: #425a72;
+  font-size: 0.78rem;
+  line-height: 1.32;
+}
+
+.playbook-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.playbook-actions .ghost.mini,
+.playbook-actions .primary.mini {
+  width: auto;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+}
+
 .chat {
   min-height: calc(100vh - 40px);
   display: grid;
@@ -2079,6 +2199,10 @@ button {
   }
 
   .focus-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .playbook-grid {
     grid-template-columns: 1fr;
   }
 
