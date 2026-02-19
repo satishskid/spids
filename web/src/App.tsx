@@ -202,6 +202,31 @@ function workerImageResolverUrl(link: string): string {
   return `${base}/v1/blog-image?link=${encodeURIComponent(link)}&v=2`;
 }
 
+const BLOG_FALLBACK_PHOTOS = [
+  "https://images.pexels.com/photos/3662667/pexels-photo-3662667.jpeg?auto=compress&cs=tinysrgb&w=1200",
+  "https://images.pexels.com/photos/3933273/pexels-photo-3933273.jpeg?auto=compress&cs=tinysrgb&w=1200",
+  "https://images.pexels.com/photos/1257110/pexels-photo-1257110.jpeg?auto=compress&cs=tinysrgb&w=1200",
+  "https://images.pexels.com/photos/4473861/pexels-photo-4473861.jpeg?auto=compress&cs=tinysrgb&w=1200",
+  "https://images.pexels.com/photos/7303534/pexels-photo-7303534.jpeg?auto=compress&cs=tinysrgb&w=1200",
+  "https://images.pexels.com/photos/7088685/pexels-photo-7088685.jpeg?auto=compress&cs=tinysrgb&w=1200",
+  "https://images.pexels.com/photos/3875129/pexels-photo-3875129.jpeg?auto=compress&cs=tinysrgb&w=1200",
+  "https://images.pexels.com/photos/6203526/pexels-photo-6203526.jpeg?auto=compress&cs=tinysrgb&w=1200"
+];
+
+function stableHash(value: string): number {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
+function fallbackBlogPhoto(link: string): string {
+  const key = link.trim();
+  const index = stableHash(key) % BLOG_FALLBACK_PHOTOS.length;
+  return BLOG_FALLBACK_PHOTOS[index];
+}
+
 function buildImageCandidates(imageUrl: string, link: string): string[] {
   const candidates: string[] = [];
   const add = (value: string) => {
@@ -216,6 +241,7 @@ function buildImageCandidates(imageUrl: string, link: string): string[] {
 
   add(imageUrl);
   add(workerImageResolverUrl(link));
+  add(fallbackBlogPhoto(link));
 
   try {
     if (imageUrl) {
@@ -230,6 +256,7 @@ function buildImageCandidates(imageUrl: string, link: string): string[] {
     // keep existing candidates
   }
 
+  add(fallbackBlogPhoto(link));
   return candidates;
 }
 
@@ -338,7 +365,7 @@ const WALL_ZOOM_CONFIG: Record<
 export function App() {
   const [uid, setUid] = useState("");
   const [authError, setAuthError] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [childId, setChildId] = useState("");
   const [childName, setChildName] = useState("");

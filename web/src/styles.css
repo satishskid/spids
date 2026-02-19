@@ -1764,7 +1764,7 @@ button {
 .chat {
   min-height: calc(100vh - 40px);
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
 }
 
 .chat-head {
@@ -1813,6 +1813,7 @@ button {
   padding: 8px 12px;
   display: grid;
   gap: 6px;
+  align-content: start;
 }
 
 .chat-filter-label {
@@ -1827,10 +1828,12 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  align-items: flex-start;
 }
 
 .chat-filter-chip {
   width: auto;
+  align-self: flex-start;
   border: 1px solid #d3e0e8;
   border-radius: 999px;
   background: #fff;
