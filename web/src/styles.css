@@ -1807,6 +1807,55 @@ button {
   gap: 8px;
 }
 
+.chat-filters {
+  border-bottom: 1px solid #e4edf2;
+  background: #f8fbfd;
+  padding: 8px 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.chat-filter-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #587083;
+}
+
+.chat-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chat-filter-chip {
+  width: auto;
+  border: 1px solid #d3e0e8;
+  border-radius: 999px;
+  background: #fff;
+  color: #49647b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 9px;
+}
+
+.chat-filter-chip.active {
+  border-color: #aac4d5;
+  background: #edf6fd;
+  color: #2e5773;
+}
+
+.chat-filter-chip.sources-only.active {
+  border-color: #9fc7b7;
+  background: #eef9f4;
+  color: #2d6d53;
+}
+
+.chat-filter-chip.reset {
+  border-style: dashed;
+}
+
 .messages {
   padding: 14px;
   overflow: auto;
@@ -1815,6 +1864,20 @@ button {
   align-content: start;
   background: linear-gradient(180deg, #ffffff 0%, #f2f7fb 100%);
   scroll-behavior: smooth;
+}
+
+.chat-filter-empty {
+  padding: 12px 10px;
+  border: 1px dashed #cfe0ea;
+  border-radius: 10px;
+  background: #f9fcff;
+}
+
+.chat-filter-status {
+  margin: 0;
+  padding: 6px 12px 0;
+  font-size: 0.76rem;
+  color: #62798d;
 }
 
 .chat-suggestions {
@@ -2434,6 +2497,15 @@ button {
   .chat-controls select,
   .chat-controls button {
     min-height: 42px;
+  }
+
+  .chat-filters {
+    padding: 8px 10px;
+  }
+
+  .chat-filter-chip {
+    font-size: 0.69rem;
+    padding: 4px 8px;
   }
 
   .chat-suggestions {

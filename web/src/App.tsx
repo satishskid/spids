@@ -28,6 +28,7 @@ import { pickPlaybookChallenges } from "./data/parentPlaybookChallenges";
 type ChatRole = "assistant" | "user";
 type ChatMode = "ask" | "checkin";
 type WallZoom = "focused" | "detailed" | "full";
+type ConfidenceFilter = "all" | "low" | "medium" | "high";
 
 interface ChatMessage {
   id: string;
@@ -357,6 +358,8 @@ export function App() {
         "I am your SKIDS pediatric companion. I help you understand the wonder of your child's growth with empathetic, science-based guidance. I am not a diagnostic tool, and I will tell you when to involve your pediatrician."
     }
   ]);
+  const [chatConfidenceFilter, setChatConfidenceFilter] = useState<ConfidenceFilter>("all");
+  const [chatSourcesOnly, setChatSourcesOnly] = useState(false);
 
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
   const [blogQuery, setBlogQuery] = useState("");
@@ -502,6 +505,38 @@ export function App() {
     return `${nameText} ${ageMonths} months old. Current milestone focus: ${domainLabel(domain)}.`;
   }, [childName, ageMonths, domain]);
   const wallSignals = useMemo(() => timeline.slice(0, 4), [timeline]);
+  const filteredMessages = useMemo(() => {
+    if (chatConfidenceFilter === "all" && !chatSourcesOnly) {
+      return messages;
+    }
+
+    const keepIds = new Set<string>();
+    messages.forEach((message, index) => {
+      if (message.role !== "assistant") {
+        return;
+      }
+
+      const confidenceLevel = message.uncertainty?.level ?? "medium";
+      const confidenceMatches = chatConfidenceFilter === "all" || confidenceLevel === chatConfidenceFilter;
+      const sourcesMatch = !chatSourcesOnly || Boolean(message.citations && message.citations.length > 0);
+      if (!confidenceMatches || !sourcesMatch) {
+        return;
+      }
+
+      keepIds.add(message.id);
+      const previous = messages[index - 1];
+      if (previous?.role === "user") {
+        keepIds.add(previous.id);
+      }
+    });
+
+    return messages.filter((message) => keepIds.has(message.id));
+  }, [messages, chatConfidenceFilter, chatSourcesOnly]);
+  const hasChatFilter = chatConfidenceFilter !== "all" || chatSourcesOnly;
+  const filteredAssistantCount = useMemo(
+    () => filteredMessages.filter((message) => message.role === "assistant").length,
+    [filteredMessages]
+  );
   const displayMilestones = useMemo(() => {
     if (milestones.length === 0) {
       return [];
@@ -1611,8 +1646,43 @@ export function App() {
             </div>
           </header>
 
+          <div className="chat-filters">
+            <span className="chat-filter-label">Sources & Confidence</span>
+            <div className="chat-filter-row">
+              {(["all", "low", "medium", "high"] as ConfidenceFilter[]).map((level) => (
+                <button
+                  key={`filter-${level}`}
+                  type="button"
+                  className={`chat-filter-chip ${chatConfidenceFilter === level ? "active" : ""}`}
+                  onClick={() => setChatConfidenceFilter(level)}
+                >
+                  {level === "all" ? "All" : level}
+                </button>
+              ))}
+              <button
+                type="button"
+                className={`chat-filter-chip sources-only ${chatSourcesOnly ? "active" : ""}`}
+                onClick={() => setChatSourcesOnly((value) => !value)}
+              >
+                With sources
+              </button>
+              {hasChatFilter ? (
+                <button
+                  type="button"
+                  className="chat-filter-chip reset"
+                  onClick={() => {
+                    setChatConfidenceFilter("all");
+                    setChatSourcesOnly(false);
+                  }}
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
+          </div>
+
           <div className="messages">
-            {messages.map((message) => (
+            {filteredMessages.map((message) => (
               <article className={`message ${message.role}`} key={message.id}>
                 <div className="message-role">{message.role === "assistant" ? "SKIDS Guide" : "You"}</div>
                 {message.role === "assistant" && message.fivePart ? (
@@ -1668,7 +1738,18 @@ export function App() {
                 )}
               </article>
             ))}
+            {filteredMessages.length === 0 ? (
+              <p className="muted chat-filter-empty">
+                No chat entries match this filter yet. Try confidence “All” or disable “With sources”.
+              </p>
+            ) : null}
           </div>
+
+          {hasChatFilter ? (
+            <p className="muted chat-filter-status">
+              Showing {filteredAssistantCount} filtered assistant responses.
+            </p>
+          ) : null}
 
           <div className="chat-suggestions">
             <button
