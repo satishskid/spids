@@ -229,7 +229,7 @@ function blogIndexHtml(posts, siteBaseUrl, workerBaseUrl) {
   </head>
   <body>
     <main>
-      <a class="toplink" href="/">Back to SKIDS Parent App</a>
+      <a class="toplink" href="/parent">Back to SKIDS Parent App</a>
       <h1>SKIDS Knowledge Library</h1>
       <p>Science-led parent education content across development, health, behavior, and milestone awareness.</p>
       <section class="grid">

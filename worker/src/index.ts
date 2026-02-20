@@ -159,22 +159,29 @@ function extractAllTags(item: string, tag: string): string[] {
 }
 
 function extractImage(value: string): string {
-  const imgTag = value.match(/<img[^>]+src="([^"]+)"/i);
-  if (imgTag?.[1]) {
-    return imgTag[1];
-  }
+  const candidates: string[] = [];
+  const collect = (pattern: RegExp) => {
+    let match: RegExpExecArray | null = null;
+    while ((match = pattern.exec(value)) !== null) {
+      const candidate = match?.[1] ?? "";
+      if (candidate) {
+        candidates.push(candidate);
+      }
+    }
+  };
 
-  const mediaTag = value.match(/<media:content[^>]+url="([^"]+)"/i);
-  if (mediaTag?.[1]) {
-    return mediaTag[1];
-  }
+  collect(/<media:content[^>]+url="([^"]+)"/gi);
+  collect(/<enclosure[^>]+url="([^"]+)"/gi);
+  collect(/<img[^>]+src="([^"]+)"/gi);
 
-  const enclosureTag = value.match(/<enclosure[^>]+url="([^"]+)"/i);
-  if (enclosureTag?.[1]) {
-    return enclosureTag[1];
+  const normalized = candidates
+    .map((candidate) => normalizeImageUrl(candidate))
+    .filter((candidate): candidate is string => Boolean(candidate));
+  const nonLogo = normalized.find((candidate) => !isLikelyLogoImage(candidate));
+  if (nonLogo) {
+    return nonLogo;
   }
-
-  return "";
+  return normalized[0] ?? "";
 }
 
 function normalizeHost(value: string): string {
@@ -236,40 +243,53 @@ function normalizeImageUrl(value: string): string {
 function isLikelyLogoImage(value: string): boolean {
   const normalized = value.toLowerCase();
   return (
+    normalized.includes("/logo") ||
+    normalized.includes("logo_") ||
+    normalized.includes("logo-") ||
     normalized.includes("/images/logo") ||
     normalized.includes("logo.png") ||
     normalized.includes("logo.svg") ||
+    normalized.includes("logo_w") ||
     normalized.includes("url=%2fimages%2flogo")
   );
 }
 
 function extractBlogImageFromPage(document: string): string {
+  const candidates: string[] = [];
+  const push = (value: string) => {
+    const normalized = normalizeImageUrl(value);
+    if (normalized) {
+      candidates.push(normalized);
+    }
+  };
+
   const ogImage = document.match(
     /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/i
   );
   if (ogImage?.[1]) {
-    const normalized = normalizeImageUrl(ogImage[1]);
-    if (normalized) {
-      return normalized;
-    }
+    push(ogImage[1]);
   }
 
   const twitterImage = document.match(
     /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*>/i
   );
   if (twitterImage?.[1]) {
-    const normalized = normalizeImageUrl(twitterImage[1]);
-    if (normalized) {
-      return normalized;
+    push(twitterImage[1]);
+  }
+
+  let imageTag: RegExpExecArray | null = null;
+  const imagePattern = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+  while ((imageTag = imagePattern.exec(document)) !== null) {
+    if (imageTag?.[1]) {
+      push(imageTag[1]);
     }
   }
 
-  const imageTag = document.match(/<img[^>]+src=["']([^"']+)["'][^>]*>/i);
-  if (imageTag?.[1]) {
-    return normalizeImageUrl(imageTag[1]);
+  const nonLogo = candidates.find((candidate) => !isLikelyLogoImage(candidate));
+  if (nonLogo) {
+    return nonLogo;
   }
-
-  return "";
+  return candidates[0] ?? "";
 }
 
 function blogIdFromLink(link: string): string {
@@ -806,6 +826,94 @@ async function resolveBlogImage(link: string): Promise<string> {
   return imageUrl;
 }
 
+async function resolveBlogImageFromArticle(link: string): Promise<string> {
+  const normalizedLink = normalizeBlogLink(link);
+  if (!normalizedLink) {
+    return "";
+  }
+
+  try {
+    const page = await fetch(normalizedLink, {
+      cf: { cacheEverything: true, cacheTtl: 900 }
+    });
+    if (!page.ok) {
+      return "";
+    }
+
+    const html = await page.text();
+    const candidate = extractBlogImageFromPage(html);
+    if (!candidate || isLikelyLogoImage(candidate)) {
+      return "";
+    }
+
+    blogImageCache.set(normalizedLink, { fetchedAt: Date.now(), imageUrl: candidate });
+    return candidate;
+  } catch {
+    return "";
+  }
+}
+
+async function proxyImageResponse(sourceUrl: string, headOnly: boolean): Promise<Response | null> {
+  if (!sourceUrl) {
+    return null;
+  }
+
+  try {
+    const upstream = await fetch(sourceUrl, {
+      cf: { cacheEverything: true, cacheTtl: 60 * 60 * 6 },
+      redirect: "follow",
+      headers: { accept: "image/*,*/*;q=0.8" }
+    });
+    if (!upstream.ok) {
+      return null;
+    }
+    const contentType = upstream.headers.get("content-type") ?? "";
+    if (contentType && !contentType.toLowerCase().startsWith("image/")) {
+      return null;
+    }
+
+    const headers = new Headers();
+    headers.set("access-control-allow-origin", "*");
+    headers.set("cache-control", "public, max-age=3600");
+    if (contentType) {
+      headers.set("content-type", contentType);
+    }
+
+    const contentLength = upstream.headers.get("content-length");
+    if (contentLength) {
+      headers.set("content-length", contentLength);
+    }
+
+    return new Response(headOnly ? null : upstream.body, {
+      status: 200,
+      headers
+    });
+  } catch {
+    return null;
+  }
+}
+
+function placeholderImageResponse(headOnly: boolean): Response {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-label="SKIDS article image unavailable">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#eef5fb"/>
+      <stop offset="100%" stop-color="#f7f2ea"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="720" fill="url(#g)"/>
+  <rect x="160" y="180" width="880" height="360" rx="28" ry="28" fill="#ffffff" fill-opacity="0.72" stroke="#cfdbe6"/>
+  <text x="600" y="328" text-anchor="middle" font-family="Arial, sans-serif" font-size="46" font-weight="700" fill="#39526a">SKIDS Knowledge Library</text>
+  <text x="600" y="382" text-anchor="middle" font-family="Arial, sans-serif" font-size="30" fill="#597186">Article image is loading</text>
+  <text x="600" y="426" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#6f8396">Tap the article to read full content</text>
+</svg>`;
+  const headers = new Headers();
+  headers.set("access-control-allow-origin", "*");
+  headers.set("cache-control", "public, max-age=1800");
+  headers.set("content-type", "image/svg+xml; charset=utf-8");
+  return new Response(headOnly ? null : svg, { status: 200, headers });
+}
+
 async function resolveBlogArticle(link: string): Promise<BlogArticle | null> {
   const normalizedLink = normalizeBlogLink(link);
   if (!normalizedLink) {
@@ -1338,19 +1446,31 @@ export default {
         return response({ error: "Missing link query param" }, 400);
       }
 
-      const imageUrl = await resolveBlogImage(link);
-      if (!imageUrl) {
-        return response({ error: "Image not found" }, 404);
+      const headOnly = request.method === "HEAD";
+      const normalizedLink = normalizeBlogLink(link);
+
+      let imageUrl = await resolveBlogImage(link);
+      let proxied = await proxyImageResponse(imageUrl, headOnly);
+
+      if (!proxied && normalizedLink) {
+        blogImageCache.delete(normalizedLink);
+        blogCache = null;
+        imageUrl = await resolveBlogImage(link);
+        proxied = await proxyImageResponse(imageUrl, headOnly);
       }
 
-      return new Response(null, {
-        status: 302,
-        headers: {
-          "access-control-allow-origin": "*",
-          "cache-control": "public, max-age=1200",
-          location: imageUrl
+      if (!proxied) {
+        const pageImageUrl = await resolveBlogImageFromArticle(link);
+        if (pageImageUrl) {
+          proxied = await proxyImageResponse(pageImageUrl, headOnly);
         }
-      });
+      }
+
+      if (!proxied) {
+        return placeholderImageResponse(headOnly);
+      }
+
+      return proxied;
     }
 
     if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/v1/blog-content") {

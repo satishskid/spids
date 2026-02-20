@@ -23,6 +23,7 @@ import {
   pickDailyFocus,
   relatedFocusTopics
 } from "./data/bodyWonderAtlas";
+import { allDiscoveryModules, pickDiscoveryModules } from "./data/discoveryJourneys";
 import { pickPlaybookChallenges } from "./data/parentPlaybookChallenges";
 
 type ChatRole = "assistant" | "user";
@@ -199,32 +200,26 @@ function workerImageResolverUrl(link: string): string {
   if (!base || !link) {
     return "";
   }
-  return `${base}/v1/blog-image?link=${encodeURIComponent(link)}&v=2`;
+  return `${base}/v1/blog-image?link=${encodeURIComponent(link)}&v=3`;
 }
 
-const BLOG_FALLBACK_PHOTOS = [
-  "https://images.pexels.com/photos/3662667/pexels-photo-3662667.jpeg?auto=compress&cs=tinysrgb&w=1200",
-  "https://images.pexels.com/photos/3933273/pexels-photo-3933273.jpeg?auto=compress&cs=tinysrgb&w=1200",
-  "https://images.pexels.com/photos/1257110/pexels-photo-1257110.jpeg?auto=compress&cs=tinysrgb&w=1200",
-  "https://images.pexels.com/photos/4473861/pexels-photo-4473861.jpeg?auto=compress&cs=tinysrgb&w=1200",
-  "https://images.pexels.com/photos/7303534/pexels-photo-7303534.jpeg?auto=compress&cs=tinysrgb&w=1200",
-  "https://images.pexels.com/photos/7088685/pexels-photo-7088685.jpeg?auto=compress&cs=tinysrgb&w=1200",
-  "https://images.pexels.com/photos/3875129/pexels-photo-3875129.jpeg?auto=compress&cs=tinysrgb&w=1200",
-  "https://images.pexels.com/photos/6203526/pexels-photo-6203526.jpeg?auto=compress&cs=tinysrgb&w=1200"
-];
+const DISCOVERY_BASE_URL =
+  String(import.meta.env.VITE_DISCOVERY_BASE_URL ?? "")
+    .trim()
+    .replace(/\/$/, "") || "https://skids-advanced-production-531csxif9-satishs-projects-89f8c44c.vercel.app";
 
-function stableHash(value: string): number {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
-  }
-  return hash;
-}
-
-function fallbackBlogPhoto(link: string): string {
-  const key = link.trim();
-  const index = stableHash(key) % BLOG_FALLBACK_PHOTOS.length;
-  return BLOG_FALLBACK_PHOTOS[index];
+function isLikelyLogoAsset(value: string): boolean {
+  const normalized = value.toLowerCase();
+  return (
+    normalized.includes("/logo") ||
+    normalized.includes("logo_") ||
+    normalized.includes("logo-") ||
+    normalized.includes("/images/logo") ||
+    normalized.includes("logo.png") ||
+    normalized.includes("logo.svg") ||
+    normalized.includes("logo_w") ||
+    normalized.includes("url=%2fimages%2flogo")
+  );
 }
 
 function buildImageCandidates(imageUrl: string, link: string): string[] {
@@ -234,6 +229,9 @@ function buildImageCandidates(imageUrl: string, link: string): string[] {
     if (!normalized) {
       return;
     }
+    if (isLikelyLogoAsset(normalized)) {
+      return;
+    }
     if (!candidates.includes(normalized)) {
       candidates.push(normalized);
     }
@@ -241,7 +239,6 @@ function buildImageCandidates(imageUrl: string, link: string): string[] {
 
   add(imageUrl);
   add(workerImageResolverUrl(link));
-  add(fallbackBlogPhoto(link));
 
   try {
     if (imageUrl) {
@@ -256,8 +253,15 @@ function buildImageCandidates(imageUrl: string, link: string): string[] {
     // keep existing candidates
   }
 
-  add(fallbackBlogPhoto(link));
   return candidates;
+}
+
+function discoveryModuleUrl(moduleId: string): string {
+  return `${DISCOVERY_BASE_URL}/discovery/${moduleId}`;
+}
+
+function discoveryCatalogUrl(): string {
+  return `${DISCOVERY_BASE_URL}/discovery`;
 }
 
 function internalBlogPath(link: string): string {
@@ -296,7 +300,11 @@ function BlogImage(props: { imageUrl: string; link: string; title: string }) {
 
   const activeSrc = candidates[candidateIndex];
   if (!activeSrc) {
-    return <div className="blog-fallback">SKIDS</div>;
+    return (
+      <div className="blog-no-image" role="img" aria-label={`Image unavailable for ${title}`}>
+        <span>Image unavailable</span>
+      </div>
+    );
   }
 
   return (
@@ -365,7 +373,7 @@ const WALL_ZOOM_CONFIG: Record<
 export function App() {
   const [uid, setUid] = useState("");
   const [authError, setAuthError] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1200);
 
   const [childId, setChildId] = useState("");
   const [childName, setChildName] = useState("");
@@ -416,6 +424,10 @@ export function App() {
   const [statusLine, setStatusLine] = useState("Ready");
   const chatPanelRef = useRef<HTMLElement | null>(null);
   const wallZoomConfig = WALL_ZOOM_CONFIG[wallZoom];
+
+  useEffect(() => {
+    document.title = "SKIDS Parent | Growth Companion";
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -677,6 +689,15 @@ export function App() {
       }),
     [ageMonths, domain, dailyFocus?.id]
   );
+  const discoveryModules = useMemo(
+    () =>
+      pickDiscoveryModules(domain, ageMonths, 6).map((module) => ({
+        ...module,
+        url: discoveryModuleUrl(module.id)
+      })),
+    [domain, ageMonths]
+  );
+  const discoveryModuleCount = useMemo(() => allDiscoveryModules().length, []);
   const playbookChallenges = useMemo(
     () =>
       pickPlaybookChallenges({
@@ -1137,6 +1158,9 @@ export function App() {
             <button className="ghost mini" type="button" onClick={() => setSidebarOpen((v) => !v)}>
               {sidebarOpen ? "Collapse panel" : "Expand panel"}
             </button>
+            <a className="ghost mini website-link" href="/">
+              SKIDS website
+            </a>
           </div>
 
           {profileEditOpen ? (
@@ -1364,30 +1388,7 @@ export function App() {
       </aside>
 
       <section className="main">
-        <section className="card today-compass">
-          <p className="eyebrow">Today Compass</p>
-          <h2>What matters now</h2>
-          <p className="muted">
-            Keep today simple: focus on one growth signal, ask one question, and save one observation for your next
-            pediatric visit.
-          </p>
-          <div className="today-compass-grid">
-            <article>
-              <strong>1. Body Wonder</strong>
-              <p>See one age-relevant focus and what to watch today.</p>
-            </article>
-            <article>
-              <strong>2. Ask SKIDS</strong>
-              <p>Get calm, medically safe guidance with confidence + sources.</p>
-            </article>
-            <article>
-              <strong>3. Save Record</strong>
-              <p>Every observation becomes part of your child health timeline.</p>
-            </article>
-          </div>
-        </section>
-
-        <section className="hero-blog library-surface">
+        <section className="hero-blog library-surface" style={{ order: 1 }}>
           <div className="hero-top">
             <button className="ghost side-toggle" type="button" onClick={() => setSidebarOpen((v) => !v)}>
               {sidebarOpen ? "Hide milestone wall" : "Show milestone wall"}
@@ -1406,11 +1407,7 @@ export function App() {
           {selectedBlog ? (
             <article className="featured-blog">
               <div className="featured-image">
-                {selectedBlog.imageUrl ? (
-                  <BlogImage imageUrl={selectedBlog.imageUrl} link={selectedBlog.link} title={selectedBlog.title} />
-                ) : (
-                  <div className="blog-fallback">SKIDS</div>
-                )}
+                <BlogImage imageUrl={selectedBlog.imageUrl} link={selectedBlog.link} title={selectedBlog.title} />
               </div>
               <div className="featured-copy">
                 <p className="eyebrow">Featured from SKIDS Knowledge Library</p>
@@ -1463,11 +1460,7 @@ export function App() {
                 onClick={() => setSelectedBlogLink(blog.link)}
               >
                 <div className="blog-image-wrap">
-                  {blog.imageUrl ? (
-                    <BlogImage imageUrl={blog.imageUrl} link={blog.link} title={blog.title} />
-                  ) : (
-                    <div className="blog-fallback">SKIDS</div>
-                  )}
+                  <BlogImage imageUrl={blog.imageUrl} link={blog.link} title={blog.title} />
                 </div>
                 <div className="blog-copy">
                   <h3>{blog.title}</h3>
@@ -1483,7 +1476,7 @@ export function App() {
           </div>
         </section>
 
-        <section className="body-wonder-atlas primary-surface">
+        <section className="body-wonder-atlas primary-surface" style={{ order: 3 }}>
           <div className="focus-top">
             <p className="eyebrow">Body Wonder Atlas</p>
             <div className="focus-top-actions">
@@ -1615,17 +1608,72 @@ export function App() {
                 </div>
               ) : null}
 
-              {playbookChallenges.length > 0 ? (
-                <div className="playbook-panel">
-                  <div className="playbook-head">
-                    <h3>Parent Playbook Quests</h3>
-                    <div className="playbook-stats">
-                      <span>{playbookStreakDays} day streak</span>
-                      <span>{playbookPoints} points</span>
-                    </div>
+              {discoveryModules.length > 0 ? (
+                <section className="discovery-preview">
+                  <div className="discovery-preview-head">
+                    <h3>Discovery Journeys</h3>
+                    <a href={discoveryCatalogUrl()} target="_blank" rel="noreferrer">
+                      Open full atlas ({discoveryModuleCount})
+                    </a>
                   </div>
                   <p className="muted">
-                    Gamified daily micro-actions inspired by SKIDS workshops on healthy habits, nutrition, digital parenting, and family communication.
+                    Imported from SKIDS Advanced discovery modules to keep the klutzgarten-style organ and development
+                    learning visible in the parent flow.
+                  </p>
+                  <div className="discovery-preview-grid">
+                    {discoveryModules.map((module) => (
+                      <article key={`discovery-${module.id}`} className="discovery-card">
+                        <div
+                          className="discovery-card-icon"
+                          style={
+                            {
+                              "--from": module.gradientFrom,
+                              "--to": module.gradientTo
+                            } as CSSProperties
+                          }
+                        >
+                          <span>{module.emoji}</span>
+                        </div>
+                        <div className="discovery-card-copy">
+                          <strong>{module.title}</strong>
+                          <p>{module.subtitle}</p>
+                          <small>{module.wonderFact}</small>
+                        </div>
+                        <div className="discovery-card-actions">
+                          <button
+                            type="button"
+                            className="ghost mini"
+                            onClick={() => {
+                              setChatMode("ask");
+                              setChatContext(`Discovery Journey • ${module.title}`);
+                              void submitChatText(
+                                `Teach me ${module.title} in parent-friendly steps for my ${ageMonths}-month child. Include what to observe at home and when to consult pediatric care.`,
+                                "ask"
+                              );
+                              chatPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                            }}
+                          >
+                            Ask SKIDS
+                          </button>
+                          <a className="ghost mini discovery-link" href={module.url} target="_blank" rel="noreferrer">
+                            Open module
+                          </a>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              {playbookChallenges.length > 0 ? (
+                <details className="playbook-panel">
+                  <summary className="playbook-summary">
+                    <span>Parent Playbook Quests</span>
+                    <span>{playbookStreakDays} day streak • {playbookPoints} points</span>
+                  </summary>
+                  <p className="muted">
+                    Gamified weekly micro-actions from SKIDS workshops on healthy habits, nutrition, digital parenting,
+                    and family communication.
                   </p>
                   <div className="playbook-grid">
                     {playbookChallenges.map((challenge) => {
@@ -1674,7 +1722,7 @@ export function App() {
                       );
                     })}
                   </div>
-                </div>
+                </details>
               ) : null}
             </>
           ) : (
@@ -1682,7 +1730,7 @@ export function App() {
           )}
         </section>
 
-        <section className="chat primary-chat-surface" ref={chatPanelRef}>
+        <section className="chat primary-chat-surface" ref={chatPanelRef} style={{ order: 2 }}>
           <header className="chat-head">
             <div>
               <h2>SKIDS Chat</h2>
@@ -1849,7 +1897,7 @@ export function App() {
           </form>
         </section>
 
-        <details className="card occasional-actions">
+        <details className="card occasional-actions" style={{ order: 4 }}>
           <summary>Support tools (occasional)</summary>
           <p className="muted occasional-note">
             These are occasional tasks: log structured observations, export child health record, or append clinic
